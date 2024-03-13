@@ -170,20 +170,28 @@ void setup(void) {
 
 void loop(void)  //main loop
 {
-  static STATE machine_state = INITIALISING;
-  //Finite-state machine Code
-  switch (machine_state) {
-    case INITIALISING:
-      machine_state = initialising();
-      break;
-    case RUNNING:  //Lipo Battery Volage OK
-      machine_state = running();
-      break;
-    case STOPPED:  //Stop of Lipo Battery voltage is too low, to protect Battery
-      machine_state = stopped();
-      break;
-  };
-  
+//   static STATE machine_state = INITIALISING;
+//   //Finite-state machine Code
+//   switch (machine_state) {
+//     case INITIALISING:
+//       machine_state = initialising();
+//       break;
+//     case RUNNING:  //Lipo Battery Volage OK
+//       machine_state = running();
+//       break;
+//     case STOPPED:  //Stop of Lipo Battery voltage is too low, to protect Battery
+//       machine_state = stopped();
+//       break;
+//   };
+  delay(500);
+  enable_motors();
+  cw();
+
+  while(1)
+  {
+    
+  }
+
   
 
   /*
