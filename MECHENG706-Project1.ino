@@ -192,8 +192,6 @@ void loop(void)  //main loop
     
   }
 
-  
-
   /*
   getCurrentAngle();
   Serial.println(currentAngle);
