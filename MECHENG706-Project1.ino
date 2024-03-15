@@ -9,38 +9,39 @@
 */
 
 #include <SoftwareSerial.h>
-#include <Servo.h>  //Need for Servo pulse output
+#include <Servo.h>
 
 /**
   * Public Defines
   */
 
-// #define NO_BATTERY_V_OK //Uncomment of BATTERY_V_OK if you do not care about battery damage.
+// #define NO_BATTERY_V_OK // Uncomment of BATTERY_V_OK if you do not care about battery damage.
 
 #define STARTUP_DELAY 1 // Seconds
+
+#define MAX_SONARDIST_CM 400
+#define MIN_SONARDIST_CM 2
 
 /**
  * Public pins
  */
 
-// Serial Data input pin
-#define BLUETOOTH_RX 10
-// Serial Data output pin
-#define BLUETOOTH_TX 11
+#define BLUETOOTH_RX 10 // Serial Data input pin
+#define BLUETOOTH_TX 11 // Serial Data output pin
 
-#define frontLeft 97  // SHORT RANGE IR
-#define backLeft 69   // LONG RANGE IR
-#define frontRight 8 // LONG RANGE IR
-#define backRight 66  // SHORT RANGE IR
+#define frontLeft 97 // SHORT RANGE IR (Number relates to specefic sensor)
+#define backLeft 69  // LONG RANGE IR (Number relates to specefic sensor)
+#define frontRight 8 // LONG RANGE IR (Number relates to specefic sensor)
+#define backRight 66 // SHORT RANGE IR (Number relates to specefic sensor)
 
-const int IR_PIN_FL = A5;
-const int IR_PIN_BL = A7;
-const int IR_PIN_FR = A4;
-const int IR_PIN_BR = A6;
+const int IR_PIN_FL = A5; // Front Left Infrared
+const int IR_PIN_BL = A7; // Back Left Infrared
+const int IR_PIN_FR = A4; // Front Right Infrared
+const int IR_PIN_BR = A6; // Back Right Infrared
 
-//Default ultrasonic ranging sensor pins, these pins are defined my the Shield
-const int TRIG_PIN = 48;
-const int ECHO_PIN = 49;
+// Default ultrasonic ranging sensor pins
+const int TRIG_PIN = 42;
+const int ECHO_PIN = 43;
 
 //Define pins
 const int gyroSensorPin = A15;
@@ -88,10 +89,10 @@ int T = 100;
 //Voltage when gyro is initialised
 float gyroZeroVoltage = 0;
 
-float gyroSupplyVoltage = 5;    // supply voltage for gyro
-float gyroSensitivity = 0.007;  // gyro sensitivity unit is (mv/degree/second) get from datasheet
-float rotationThreshold = 1.5;  // because of gyro drifting, defining rotation angular velocity less than this value will be ignored
-float gyroRate = 0;             // read out value of sensor in voltage
+float gyroSupplyVoltage = 5;   // supply voltage for gyro
+float gyroSensitivity = 0.007; // gyro sensitivity unit is (mv/degree/second) get from datasheet
+float rotationThreshold = 1.5; // because of gyro drifting, defining rotation angular velocity less than this value will be ignored
+float gyroRate = 0;            // read out value of sensor in voltage
 
 // current angle calculated by angular velocity integral on
 //Let 180 degrees be straight forward (Just ease of coding for now)
@@ -104,13 +105,10 @@ const unsigned int MAX_DIST = 23200;
 int speed_val = 150;
 int speed_change;
 
-int pos = 0;
-
 Servo left_font_motor;   // create servo object to control Vex Motor Controller 29
 Servo left_rear_motor;   // create servo object to control Vex Motor Controller 29
 Servo right_rear_motor;  // create servo object to control Vex Motor Controller 29
 Servo right_font_motor;  // create servo object to control Vex Motor Controller 29
-Servo turret_motor;
 
 SoftwareSerial BluetoothSerial(BLUETOOTH_RX, BLUETOOTH_TX);
 
@@ -151,7 +149,6 @@ STATE stopped();
 boolean is_battery_voltage_OK();
 
 void setup(void) {
-  turret_motor.attach(11);
   pinMode(LED_BUILTIN, OUTPUT);
 
   // The Trigger pin will tell the sensor to range find
@@ -159,45 +156,41 @@ void setup(void) {
   digitalWrite(TRIG_PIN, LOW);
 
   BluetoothSerial.begin(115200);
+
   BluetoothSerial.println("MECHENG706_Base_Code_07.03.2024");
-  delay(1000);
   BluetoothSerial.println("Setup....");
 
+  // Inits
   GyroSetup();  //Set up starting voltage for gyro
 
-  delay(1000);  //settling time but no really needed
+  // settling time but no really needed
+  delaySeconds(STARTUP_DELAY);
 }
 
 void loop(void)  //main loop
 {
-//   static STATE machine_state = INITIALISING;
-//   //Finite-state machine Code
-//   switch (machine_state) {
-//     case INITIALISING:
-//       machine_state = initialising();
-//       break;
-//     case RUNNING:  //Lipo Battery Volage OK
-//       machine_state = running();
-//       break;
-//     case STOPPED:  //Stop of Lipo Battery voltage is too low, to protect Battery
-//       machine_state = stopped();
-//       break;
-//   };
-  delay(500);
-  enable_motors();
-  cw();
+  delaySeconds(5);
+
+  // static STATE machine_state = INITIALISING;
+  // //Finite-state machine Code
+  // switch (machine_state) {
+  //   case INITIALISING:
+  //     machine_state = initialising();
+  //     break;
+  //   case RUNNING:  //Lipo Battery Volage OK
+  //     machine_state = running();
+  //     break;
+  //   case STOPPED:  //Stop of Lipo Battery voltage is too low, to protect Battery
+  //     machine_state = stopped();
+  //     break;
+  // };
+
+  findCorner();
 
   while(1)
   {
     
   }
-
-  /*
-  getCurrentAngle();
-  Serial.println(currentAngle);
-  driveStraight();
-  delay(T);
-  */
 }
 
 //----------------------Motor moments------------------------
@@ -218,12 +211,12 @@ void disable_motors()
 
 void enable_motors()
 {
-  left_font_motor.attach(left_front);  // attaches the servo on pin left_front to turn Vex Motor Controller 29 On
-  left_rear_motor.attach(left_rear);  // attaches the servo on pin left_rear to turn Vex Motor Controller 29 On
+  left_font_motor.attach(left_front);   // attaches the servo on pin left_front to turn Vex Motor Controller 29 On
+  left_rear_motor.attach(left_rear);    // attaches the servo on pin left_rear to turn Vex Motor Controller 29 On
   right_rear_motor.attach(right_rear);  // attaches the servo on pin right_rear to turn Vex Motor Controller 29 On
-  right_font_motor.attach(right_front);  // attaches the servo on pin right_front to turn Vex Motor Controller 29 On
+  right_font_motor.attach(right_front); // attaches the servo on pin right_front to turn Vex Motor Controller 29 On
 }
-void stop() //Stop
+void stop()
 {
   left_font_motor.writeMicroseconds(1500);
   left_rear_motor.writeMicroseconds(1500);
@@ -239,7 +232,7 @@ void forward()
   right_font_motor.writeMicroseconds(1500 - speed_val);
 }
 
-void reverse ()
+void reverse()
 {
   left_font_motor.writeMicroseconds(1500 - speed_val);
   left_rear_motor.writeMicroseconds(1500 - speed_val);
@@ -247,7 +240,7 @@ void reverse ()
   right_font_motor.writeMicroseconds(1500 + speed_val);
 }
 
-void ccw ()
+void ccw()
 {
   left_font_motor.writeMicroseconds(1500 - speed_val);
   left_rear_motor.writeMicroseconds(1500 - speed_val);
@@ -255,7 +248,7 @@ void ccw ()
   right_font_motor.writeMicroseconds(1500 - speed_val);
 }
 
-void cw ()
+void cw()
 {
   left_font_motor.writeMicroseconds(1500 + speed_val);
   left_rear_motor.writeMicroseconds(1500 + speed_val);
@@ -263,7 +256,7 @@ void cw ()
   right_font_motor.writeMicroseconds(1500 + speed_val);
 }
 
-void strafe_left ()
+void strafe_left()
 {
   left_font_motor.writeMicroseconds(1500 - speed_val);
   left_rear_motor.writeMicroseconds(1500 + speed_val);
@@ -271,7 +264,7 @@ void strafe_left ()
   right_font_motor.writeMicroseconds(1500 - speed_val);
 }
 
-void strafe_right ()
+void strafe_right()
 {
   left_font_motor.writeMicroseconds(1500 + speed_val);
   left_rear_motor.writeMicroseconds(1500 - speed_val);
@@ -303,25 +296,24 @@ float HC_SR04_range()
 
   // Wait for pulse on echo pin
   t1 = micros();
-  while ( digitalRead(ECHO_PIN) == 0 ) {
+  while (digitalRead(ECHO_PIN) == 0) {
     t2 = micros();
     pulse_width = t2 - t1;
-    if ( pulse_width > (MAX_DIST + 1000)) {
-      // SerialCom->println("HC-SR04: NOT found");
+    if (pulse_width > (MAX_DIST + 1000)) {
+      BluetoothSerial.println("HC-SR04: NOT found");
       return;
     }
   }
 
   // Measure how long the echo pin was held high (pulse width)
   // Note: the micros() counter will overflow after ~70 min
-
   t1 = micros();
-  while ( digitalRead(ECHO_PIN) == 1)
+  while (digitalRead(ECHO_PIN) == 1)
   {
     t2 = micros();
     pulse_width = t2 - t1;
-    if ( pulse_width > (MAX_DIST + 1000) ) {
-      // SerialCom->println("HC-SR04: Out of range");
+    if (pulse_width > (MAX_DIST + 1000)) {
+      BluetoothSerial.println("HC-SR04: Out of range");
       return;
     }
   }
@@ -331,16 +323,18 @@ float HC_SR04_range()
 
   // Calculate distance in centimeters and inches. The constants
   // are found in the datasheet, and calculated from the assumed speed
-  //of sound in air at sea level (~340 m/s).
+  // of sound in air at sea level (~340 m/s).
   cm = pulse_width / 58.0;
   inches = pulse_width / 148.0;
 
   // Print out results
-  if ( pulse_width > MAX_DIST ) {
+  if (pulse_width > MAX_DIST) 
+  {
     BluetoothSerial.print("HC-SR04: Out of range");
-  } else {
-    return cm;
+    return -1;
   }
+    
+  return cm;
 }
 
 // ----------------------Delay------------------------
@@ -398,7 +392,8 @@ STATE running() {
 
   fast_flash_double_LED_builtin();
 
-  if (millis() - previous_millis > 500) {  //Arduino style 500ms timed execution statement
+  //Arduino style 500ms timed execution statement
+  if (millis() - previous_millis > 500) {
     previous_millis = millis();
 
     BluetoothSerial.println("RUNNING---------");
@@ -407,17 +402,6 @@ STATE running() {
     #ifndef NO_BATTERY_V_OK
       if (!is_battery_voltage_OK()) return STOPPED;
     #endif
-
-    turret_motor.write(pos);
-
-    if (pos == 0)
-    {
-      pos = 45;
-    }
-    else
-    {
-      pos = 0;
-    }
   }
 
   return RUNNING;
@@ -431,7 +415,8 @@ STATE stopped() {
   disable_motors();
   slow_flash_LED_builtin();
 
-  if (millis() - previous_millis > 500) { //print massage every 500ms
+  //print massage every 500ms
+  if (millis() - previous_millis > 500) {
     previous_millis = millis();
     BluetoothSerial.println("STOPPED---------");
 
@@ -442,7 +427,9 @@ STATE stopped() {
         BluetoothSerial.println(counter_lipo_voltage_ok);
 
         counter_lipo_voltage_ok++;
-        if (counter_lipo_voltage_ok > 10) { //Making sure lipo voltage is stable
+
+        //Making sure lipo voltage is stable
+        if (counter_lipo_voltage_ok > 10) {
           counter_lipo_voltage_ok = 0;
           enable_motors();
           BluetoothSerial.println("Lipo OK returning to RUN STATE");
@@ -508,86 +495,54 @@ boolean is_battery_voltage_OK()
 // ----------------------Homing------------------------
 
 void findCorner()
-{
-  delaySeconds(5);
-  
+{  
   cw();
   enable_motors();
 
-  // delaySeconds(6);
-  // delay(6400);
-
-  float distances[40];
+  float distances[80];
   float cornerDistances[8];
 
-  float corner[8];
   int cornerIndex = 0;
 
-  for (int i = 0; i < 40; i++) // TODO: Change to gyro so we know we done a 360 degree turn
+  for (int i = 0; i < 80; i++) // TODO: Change to gyro so we know we done a 360 degree turn
   {
     // Measure Distance
-    float distance = HC_SR04_range();
-    
-    // Store Distances
-    distances[i] = distance;
-    // BluetoothSerial.println(distance);
-
+    distances[i] = HC_SR04_range();
     delay(20);
   }
-
-  // for (int i = 0; i < 40; i++)
-  // {
-  //   BluetoothSerial.println(distances[i]);
-  //   delay(500);
-  // }
-
-  // for (int i = 0; i < 40; i++)
-  // {
-  //   // if (distances[i] ? MAX_DISTANCE_CM || distances[i] < MIN_DISTANCE_CM)
-  //   //   continue; // Skip invalid readings;
-
-  //   if (distances[i] > distances[i + 1])
-  //   {
-  //     if (i == 0)
-  //     {
-
-  //     }
-  //     else
-  //     {
-  //       if (distances[i] > distances[i-1])
-  //       {
-  //         cornerDistances[cornerIndex] = distances[i];
-  //         cornerIndex++;
-  //       }
-  //     }
-  //   }
-
-  //   if (cornerIndex >= 8)
-  //     break; // Found all corners
-  // }
-  
+ 
   stop();
   disable_motors();
 
-  // BluetoothSerial.println("Corners");
-
-  // for (int i = 0; i < 8; i++)
-  // {
-  //   BluetoothSerial.println(cornerDistances[i]);
-  // }
-
-  // BluetoothSerial.println("End");
-
-  for (int i = 0; i < 40; i++)
+  // Analyze the collected distances to find corners
+  for (int i = 1; i < 79; i++) // Start from 1 and end at 78 to avoid out of bound indexes
   {
-    BluetoothSerial.println(distances[i]);
-    delay(500);
+    if (distances[i] > MAX_SONARDIST_CM || distances[i] < MIN_SONARDIST_CM)
+      continue; // Skip invalid readings;
+
+    // Check for a significant change in distance indicating a corner
+    // Introduce a threshold (e.g., deltaThreshold) to define what constitutes a significant change
+    float deltaThreshold = 10.0; // Adjust based on your robot's environment and sensor
+    bool isCorner = (abs(distances[i] - distances[i + 1]) > deltaThreshold) && 
+                    (abs(distances[i] - distances[i - 1]) > deltaThreshold);
+    
+    if (isCorner)
+    {
+      cornerDistances[cornerIndex] = distances[i];
+      cornerIndex++;
+      // if (cornerIndex >= 8) break;
+    }
   }
 
-  while(1)
+  // Output the detected corners
+  BluetoothSerial.println("Corners");
+  for (int i = 0; i < cornerIndex; i++)
   {
-
+    BluetoothSerial.println(cornerDistances[i]);
   }
+  BluetoothSerial.print("Amount of Corners Indicated: ");
+  BluetoothSerial.println(cornerIndex);
+  BluetoothSerial.println("End");
 }
 
 // ----------------------Gyro------------------------
@@ -690,47 +645,47 @@ void updateIRDistance(int irSensor)
   void updateCoordinates()
   {
     /* General rules of thumb and key information:
-  * If AND ONLY if the robot is correctly alligned to be in parallel with the wall, 
-    sonar reading will control X reading and IR sensors will control Y readings
-  * If the robot is not correctly alligned with the wall, we will get inaccurate coordinates based on this code
-  * The board is 2500mm long and 1200mm 
-  * If the robot is 400mm away from the wall in the Y direction, rely on both long ranges to give reading
-  * Hypothetically if alligned correctly, the 2 long range IR sensors should add to 1200mm once in the middle
-    */
+     * If AND ONLY if the robot is correctly alligned to be in parallel with the wall, 
+     * sonar reading will control X reading and IR sensors will control Y readings
+     * If the robot is not correctly alligned with the wall, we will get inaccurate coordinates based on this code
+     * The board is 2500mm long and 1200mm 
+     * If the robot is 400mm away from the wall in the Y direction, rely on both long ranges to give reading
+     * Hypothetically if alligned correctly, the 2 long range IR sensors should add to 1200mm once in the middle
+     */
   
-  getCurrentAngle(); // update current angle (Z coordinate)
-  updateIRDistance(frontLeft);
-  updateIRDistance(backLeft);
-  updateIRDistance(frontRight);
-  updateIRDistance(backRight);
+    getCurrentAngle(); // update current angle (Z coordinate)
+    updateIRDistance(frontLeft);
+    updateIRDistance(backLeft);
+    updateIRDistance(frontRight);
+    updateIRDistance(backRight);
 
     // FOR LEFT SIDE CLOSE
     if ((frontLeftDistance < 200) && (backLeftDistance < 200)){
      if (wallDirection == 0){ // left side closer to start
-       yCoordinate = (frontLeftDistance+backLeftDistance)/2;
+       yCoordinate = (frontLeftDistance + backLeftDistance) / 2;
       }
      else { // left side closer to finish
-       yCoordinate = ((1200-frontLeftDistance)+(1200-backLeftDistance))/2;
+       yCoordinate = ((1200 - frontLeftDistance) + (1200 - backLeftDistance)) / 2;
      }    
     }
 
     // FOR RIGHT SIDE CLOSE
     if ((frontRightDistance < 200) && (backRightDistance < 200)){
       if (wallDirection == 1){ // right side closer to start
-        yCoordinate = (frontRightDistance+backRightDistance)/2;
+        yCoordinate = (frontRightDistance + backRightDistance) / 2;
       }
       else { // right side closer to finish
-        yCoordinate = ((1200-frontRightDistance)+(120-backRightDistance))/2;
+        yCoordinate = ((1200 - frontRightDistance) + (120 - backRightDistance)) / 2;
       }
     } 
 
     // FOR IN THE CENTRE 
     if ((frontRightDistance > 200) && (backLeftDistance > 200)){
       if (wallDirection == 0){ // adjust coordinates to be relative to TOP LEFT/BOTTOM RIGHT at start
-        yCoordinate = ((backLeftDistance)+(1200-frontRightDistance))/2;
+        yCoordinate = ((backLeftDistance) + (1200 - frontRightDistance)) / 2;
       }
       else { // adjust coordinates to be relative to TOP RIGHT/BOTTOM LEFT at start
-        yCoordinate = ((1200-backLeftDistance)+(frontRightDistance))/2;
+        yCoordinate = ((1200 - backLeftDistance) + (frontRightDistance)) / 2;
       }
     }  
 
@@ -761,7 +716,7 @@ void updateIRDistance(int irSensor)
     updateIRDistance(backRight);
     
     // If left side closer to wall, set wallDirection to 0
-    if((frontLeftDistance+backLeftDistance)<(frontRightDistance+backRightDistance)){
+    if ((frontLeftDistance + backLeftDistance) < (frontRightDistance + backRightDistance)){
       wallDirection = 0;
     }
     // Else, right side is closer to wall therefore set wallDirection to 1
