@@ -72,6 +72,9 @@ float frontRightDistance;
 float backLeftDistance;
 float backRightDistance;
 
+// Keeps track of number of times updateIRDistance was called since updateCoordinates was last called
+float iterationsSinceCoordUpdate; 
+
 // Coordinate based variables:
 float xCoordinate;
 float yCoordinate;
@@ -200,7 +203,18 @@ void loop(void)  //main loop
   BluetoothSerial.println("Y-Coordinate (measured from IR):");
 
   BluetoothSerial.println(yCoordinate);
-  
+
+  BluetoothSerial.print("Front Left Distance from wall: ");
+  BluetoothSerial.println(frontLeftDistance);
+
+  BluetoothSerial.print("Back Left Distance from wall: ");
+  BluetoothSerial.println(backLeftDistance);
+
+  BluetoothSerial.print("Front Right Distance from wall: ");
+  BluetoothSerial.println(frontRightDistance);
+
+  BluetoothSerial.print("Back Right Distance from wall: ");
+  BluetoothSerial.println(backRightDistance);
 
   /*
   getCurrentAngle();
@@ -648,26 +662,26 @@ void getCurrentAngle()
 void updateIRDistance(int irSensor)
 {
   //update voltage/distance reading for front left IR sensor  
-  if (irSensor == frontLeft){
-    fLV = analogRead(IR_PIN_FL) * (5.0 / 1023.0);
+  if (irSensor == backLeft){
+    bLV = analogRead(IR_PIN_FL) * (5.0 / 1023.0);
     // If voltage within accurate range, set to calculated distance
-    if (fLV < 2.75){
-      frontLeftDistance = 11.26 * pow(fLV, 4) -104.53 * pow(fLV, 3) + 358.65 * pow(fLV, 2) -565.76 * fLV + 413.57;
+    if (bLV < 2.75){
+      backLeftDistance = 11.26 * pow(bLV, 4) -104.53 * pow(bLV, 3) + 358.65 * pow(bLV, 2) -565.76 * bLV + 413.57;
     } 
   // Else set to minimum accurate reading    
     else {
-      frontLeftDistance = 40;
+      backLeftDistance = 40;
     }
   }
 
   //update voltage/distance reading for back left IR sensor  
-  if (irSensor == backLeft){
-    bLV = analogRead(IR_PIN_BL) * (5.0 / 1023.0);
-    if (bLV < 2.25){
-      backLeftDistance = 50.961 * pow(bLV, 4) -355.71 * pow(bLV, 3) + 972.91 * pow(bLV, 2) -1316.4 * bLV + 882.22;
+  if (irSensor == frontLeft){
+    fLV = analogRead(IR_PIN_BL) * (5.0 / 1023.0);
+    if (fLV < 2.25){
+      frontLeftDistance = 33.131 * pow(fLV, 4) -279.98 * pow(fLV, 3) + 874.14 * pow(fLV, 2) -1273.4 * fLV + 877.73;
     } 
     else {
-      backLeftDistance = 100;
+      frontLeftDistance = 100;
     }
   }
 
@@ -675,18 +689,18 @@ void updateIRDistance(int irSensor)
   if (irSensor == backRight){
     bRV = analogRead(IR_PIN_BR) * (5.0 / 1023.0);
     if (bRV < 2.57){
-      backRightDistance = 33.515 * pow(bRV, 4) -236.7 * pow(bRV, 3) + 627.52 * pow(bRV, 2) -788.81 * bRV + 478.65;
+      backRightDistance = 72.89 * pow(bRV, 4) -603.88 * pow(bRV, 3) + 1816.2 * pow(bRV, 2) -2438.6 * bRV + 1415;
     } 
     else {
       backRightDistance = 40;
     }
   }
 
-  //update voltage/distance reading for back right IR sensor  
+  //update voltage/distance reading for front right IR sensor  
   if (irSensor == frontRight){
     fRV = analogRead(IR_PIN_FR) * (5.0 / 1023.0);
     if (bRV < 2.38){
-      frontRightDistance = 130.26 * pow(fRV, 4) -889.33 * pow(fRV, 3) + 2284.3 * pow(fRV, 2) -2732.8 * fRV + 478.65;
+      frontRightDistance = 33.515 * pow(fRV, 4) -236.7 * pow(fRV, 3) + 627.52 * pow(fRV, 2) -788.81 * fRV + 478.65;
     } 
     else {
       frontRightDistance = 100;
