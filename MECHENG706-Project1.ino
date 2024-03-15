@@ -114,6 +114,46 @@ Servo turret_motor;
 
 SoftwareSerial BluetoothSerial(BLUETOOTH_RX, BLUETOOTH_TX);
 
+//PID Control System Global Vars
+//declare pid struct
+struct pidvars {
+  int pos;
+  float eprev;
+  float eintegral;
+  float kp, ki, kd;
+};
+
+//x coord PID variables
+pidvars xVar = {
+  .pos = 0,
+  .eprev = 0,
+  .eintegral = 0,
+  .kp = 3.38,
+  .ki = 0.154,
+  .kd = 1.02,
+};
+
+//y coord PID variables
+pidvars yVar = {
+  .pos = 0,
+  .eprev = 0,
+  .eintegral = 0,
+  .kp = 1.96,
+  .ki = 0.205,
+  .kd = 1.04,
+};
+
+//angular PID variables
+pidvars aVar = {
+  .pos = 0,
+  .eprev = 0,
+  .eintegral = 0,
+  .kp = 2.72,
+  .ki = 0.343,
+  .kd = 1.21,
+};
+long prevT = 0;
+
 /**
  * Private Decleration 
  */
@@ -768,4 +808,28 @@ void updateIRDistance(int irSensor)
     else{
       wallDirection = 1;
     }
+  }
+
+  //Pid Logic, input error, previous error and integral error, and PID constants. Returns velocity.
+
+  float pidControl(pidvars pidName, float error){
+
+    // time difference
+    long currT = micros();
+    long et = currT - prevT;
+    float deltaT = ((float)(currT - prevT))/1.0e6;
+    prevT = currT;
+
+    //derivitive:
+    float dedt = (error - pidName.eprev)/(deltaT);
+    //integral:
+    pidName.eintegral = pidName.eintegral + error * deltaT;
+
+    //control signal:
+    float velocity = pidName.kp * error + pidName.ki * pidName.eintegral + pidName.kd * dedt;
+
+    // store previous error
+    pidName.eprev = error;
+
+    return velocity;
   }
