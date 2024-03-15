@@ -39,8 +39,8 @@ const int IR_PIN_FR = A4;
 const int IR_PIN_BR = A6;
 
 //Default ultrasonic ranging sensor pins, these pins are defined my the Shield
-const int TRIG_PIN = 48;
-const int ECHO_PIN = 49;
+const int TRIG_PIN = 42;
+const int ECHO_PIN = 43;
 
 //Define pins
 const int gyroSensorPin = A15;
@@ -151,7 +151,7 @@ STATE stopped();
 boolean is_battery_voltage_OK();
 
 void setup(void) {
-  turret_motor.attach(11);
+  turret_motor.attach(69); // was 11 in base code 
   pinMode(LED_BUILTIN, OUTPUT);
 
   // The Trigger pin will tell the sensor to range find
@@ -183,14 +183,24 @@ void loop(void)  //main loop
 //       machine_state = stopped();
 //       break;
 //   };
-  delay(500);
-  enable_motors();
-  cw();
+  delay(2000);
+  
+  //setWallDirection(); // test this later
+  // For now assume wall direction = 0 (left side closer to start)
+  wallDirection = 0;
 
-  while(1)
-  {
-    
-  }
+  BluetoothSerial.println("***************************************");
+
+  updateCoordinates();
+
+  BluetoothSerial.println("X-Coordinate (measured from Sonar):");
+
+  BluetoothSerial.println(xCoordinate);
+
+  BluetoothSerial.println("Y-Coordinate (measured from IR):");
+
+  BluetoothSerial.println(yCoordinate);
+  
 
   /*
   getCurrentAngle();
@@ -732,8 +742,10 @@ void updateIRDistance(int irSensor)
       else { // adjust coordinates to be relative to TOP RIGHT/BOTTOM LEFT at start
         yCoordinate = ((1200-backLeftDistance)+(frontRightDistance))/2;
       }
-    }  
+    }
 
+    // FOR X-COORDINATE
+    xCoordinate = (2000-HC_SR04_range());
   }
 
 // ----------------------Control System------------------------
