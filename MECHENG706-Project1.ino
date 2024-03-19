@@ -116,11 +116,7 @@ SoftwareSerial BluetoothSerial(BLUETOOTH_RX, BLUETOOTH_TX);
  * Private Decleration 
  */
 
-// TODO: Create comment names for diiferent functions
-
-float HC_SR04_range();
-
-void delaySeconds(int TimedDelaySeconds);
+// Motor Movements
 void disable_motors();
 void enable_motors();
 void stop();
@@ -131,22 +127,46 @@ void cw();
 void strafe_left();
 void strafe_right();
 void speed_change_smooth();
+
+// Sonar
+float HC_SR04_range();
+
+// Delay
+void delaySeconds(int TimedDelaySeconds);
+
+// Builtin LED FLashing
 void slow_flash_LED_builtin();
 void fast_flash_double_LED_builtin();
+
+// Gyro
 void GyroSetup();
 void getCurrentAngle();
-void setWallDirection();
-void Move();
-void updateCoordinates();
-void updateIRDistance(int irSensor);
-void getCurrentAngle();
+
+
+// Homing
 void findCorner();
 
+// Infrared Sensor
+void updateIRDistance(int irSensor);
+
+// Coordinate System
+void updateCoordinates();
+
+// Control System
+void Move();
+void setWallDirection();
+
+// State machine
 STATE initialising();
 STATE running();
 STATE stopped();
 
+// Battery Voltage
 boolean is_battery_voltage_OK();
+
+/**
+ * Set up
+ */
 
 void setup(void) {
   pinMode(LED_BUILTIN, OUTPUT);
@@ -189,7 +209,7 @@ void loop(void)  //main loop
 
   while(1)
   {
-    
+
   }
 }
 
@@ -639,7 +659,7 @@ void updateIRDistance(int irSensor)
   }
 }
 
-  // ----------------------Xoordinate System------------------------
+  // ----------------------Coordinate System------------------------
 
   // Update the X, Y, Z coordinates relative to starting point being (~15, ~15, 0°). Starting point once in corner.
   void updateCoordinates()
