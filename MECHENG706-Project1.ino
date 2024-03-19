@@ -810,8 +810,7 @@ void updateIRDistance(int irSensor)
     }
   }
 
-  //Pid Logic, input error, previous error and integral error, and PID constants. Returns velocity.
-
+  //Pid Logic, input error, and pidvars struct name. Returns velocity.
   float pidControl(pidvars pidName, float error){
 
     // time difference
@@ -833,3 +832,10 @@ void updateIRDistance(int irSensor)
 
     return velocity;
   }
+
+  //Function for inverse kinematics. Input velocities, output angular velocity of each wheel.
+  float* inverseKinematics (float Vx, float Vy, float Az){
+    //Create a dynamically allocated array, which will be deleted after use.
+    float* velArray = new float[3];
+    
+  } 
