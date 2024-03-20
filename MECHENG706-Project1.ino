@@ -154,6 +154,11 @@ pidvars aVar = {
 };
 long prevT = 0;
 
+//Initialise matrix for inverse kinematics:
+float invKMatrix[4][3] =  {{1,1,-0.165},{1,-1,0.165},{1,-1,-0.165},{1,1,0.165}};
+float velArray[3];
+float angVelArray[4];
+
 /**
  * Private Decleration 
  */
@@ -834,8 +839,23 @@ void updateIRDistance(int irSensor)
   }
 
   //Function for inverse kinematics. Input velocities, output angular velocity of each wheel.
-  float* inverseKinematics (float Vx, float Vy, float Az){
-    //Create a dynamically allocated array, which will be deleted after use.
-    float* velArray = new float[3];
-    
+  void inverseKinematics (float Vx, float Vy, float Az){
+    //Input values into the velocity matrix
+    velArray[0] = Vx;
+    velArray[1] = Vy;
+    velArray[2] = Az;
+
+    // Multiplying matrix a and b and storing in array mult.
+    for(int i = 0; i < 4; ++i){
+      for(int k = 0; k < 3; ++k){
+        angVelArray[i] += invKMatrix[i][k] * velArray[k];
+      }
+    }
   } 
+
+
+  //PID Control Loop, to be run in the main loop
+
+  void controlLoop(){
+    
+  }
