@@ -59,8 +59,26 @@ const byte right_front = 49;
 //State machine states
 enum STATE {
   INITIALISING,
+  FINDCORNER,
   RUNNING,
   STOPPED
+};
+
+struct nonBlockingTimers
+{
+  unsigned long lastUpdateTimeGyro;
+  unsigned long lastUpdateTimeCorner;
+};
+
+struct angle
+{
+  float angle;
+  float fullTurn;
+};
+
+struct allAngles 
+{
+  angle cornerAngle;
 };
 
 /**
@@ -83,20 +101,29 @@ float fRV;
 float bLV;
 float bRV;
 
-//Time of one loop
+// Time of one loop, 0.1 s
 int T = 100;
 
-//Voltage when gyro is initialised
+// Voltage when gyro is initialised
 float gyroZeroVoltage = 0;
 
 float gyroSupplyVoltage = 5;   // supply voltage for gyro
 float gyroSensitivity = 0.007; // gyro sensitivity unit is (mv/degree/second) get from datasheet
 float rotationThreshold = 1.5; // because of gyro drifting, defining rotation angular velocity less than this value will be ignored
-float gyroRate = 0;            // read out value of sensor in voltage
 
 // current angle calculated by angular velocity integral on
-//Let 180 degrees be straight forward (Just ease of coding for now)
-float currentAngle = 180;
+// Let 180 degrees be straight forward (Just ease of coding for now)
+float currentAngle = 0;
+float prevAngle = 0;
+int fullTurns = 0;  // Counter for full turns. Positive for clockwise, negative for counterclockwise
+
+float distances[100] = { 0 };
+float cornerDistances[8];
+int cornerIndex = 0;
+int indexForDistances = 0;;
+
+// This variable will track the cumulative change in angle.
+float cumulativeAngleChange = 0;
 
 // Anything over 400 cm (23200 us pulse) is "out of range". Hit:If you decrease to this the ranging sensor but the timeout is short, you may not need to read up to 4meters.
 const unsigned int MAX_DIST = 23200;
@@ -111,6 +138,16 @@ Servo right_rear_motor;  // create servo object to control Vex Motor Controller 
 Servo right_font_motor;  // create servo object to control Vex Motor Controller 29
 
 SoftwareSerial BluetoothSerial(BLUETOOTH_RX, BLUETOOTH_TX);
+
+nonBlockingTimers mNonBlockingTimers = 
+{
+  .lastUpdateTimeGyro = 0,
+  .lastUpdateTimeCorner = 0
+};
+
+angle mCornerAngle;
+
+static STATE machine_state;
 
 /**
  * Private Decleration 
@@ -133,6 +170,7 @@ float HC_SR04_range();
 
 // Delay
 void delaySeconds(int TimedDelaySeconds);
+bool nonBlockingDelay(unsigned long *lastMillis, unsigned long delayMicros);
 
 // Builtin LED FLashing
 void slow_flash_LED_builtin();
@@ -141,10 +179,6 @@ void fast_flash_double_LED_builtin();
 // Gyro
 void GyroSetup();
 void getCurrentAngle();
-
-
-// Homing
-void findCorner();
 
 // Infrared Sensor
 void updateIRDistance(int irSensor);
@@ -160,6 +194,7 @@ void setWallDirection();
 STATE initialising();
 STATE running();
 STATE stopped();
+STATE findCorner();
 
 // Battery Voltage
 boolean is_battery_voltage_OK();
@@ -183,34 +218,34 @@ void setup(void) {
   // Inits
   GyroSetup();  //Set up starting voltage for gyro
 
+  machine_state = INITIALISING;
+
   // settling time but no really needed
   delaySeconds(STARTUP_DELAY);
 }
 
 void loop(void)  //main loop
 {
-  delaySeconds(5);
+  //Finite-state machine Code
+  switch (machine_state) {
+    case INITIALISING:
+      machine_state = initialising();
+      break;
+    case FINDCORNER:
+      machine_state = findCorner();
+      break;
+    case RUNNING:  //Lipo Battery Volage OK
+      machine_state = running();
+      break;
+    case STOPPED:  //Stop of Lipo Battery voltage is too low, to protect Battery
+      machine_state = stopped();
+      break;
+  };
 
-  // static STATE machine_state = INITIALISING;
-  // //Finite-state machine Code
-  // switch (machine_state) {
-  //   case INITIALISING:
-  //     machine_state = initialising();
-  //     break;
-  //   case RUNNING:  //Lipo Battery Volage OK
-  //     machine_state = running();
-  //     break;
-  //   case STOPPED:  //Stop of Lipo Battery voltage is too low, to protect Battery
-  //     machine_state = stopped();
-  //     break;
-  // };
-
-  findCorner();
-
-  while(1)
-  {
-
-  }
+  /**
+   * Methods that must run every loop 
+   */
+  getCurrentAngle(); // This function must run every 100ms so is placed outside the FSM
 }
 
 //----------------------Motor moments------------------------
@@ -367,6 +402,18 @@ void delaySeconds(int TimedDelaySeconds)
   }
 }
 
+bool nonBlockingDelay(unsigned long *lastMillis, unsigned long delayMicros) {
+  unsigned long currentMicros = millis();
+
+  // Check if the current time minus the last recorded time is greater than the delay
+  if (currentMicros - *lastMillis >= delayMicros) {
+      // Update the last recorded time
+      *lastMillis = currentMicros;
+      return true;  // Return true if the delay has elapsed
+  }
+  return false;  // Return false if the delay has not elapsed
+}
+
 // ----------------------Builtin LED FLashing------------------------
 
 void slow_flash_LED_builtin()
@@ -400,10 +447,66 @@ void fast_flash_double_LED_builtin()
 STATE initialising() {
   //initialising
   BluetoothSerial.println("INITIALISING....");
-  delay(1000); //One second delay to see the serial string "INITIALISING...."
+  delaySeconds(1); //One second delay to see the serial string "INITIALISING...."
   BluetoothSerial.println("Enabling Motors...");
   enable_motors();
   BluetoothSerial.println("RUNNING STATE...");
+
+  mCornerAngle.angle = currentAngle;
+  return FINDCORNER;
+}
+
+STATE findCorner() {
+  enable_motors();
+  cw();
+
+  // Keep continue to turn until its done 1 turn;
+  if (abs(fullTurns) < 1)
+  {
+    if (abs(currentAngle) - abs(prevAngle) >= 5)
+    {
+      distances[indexForDistances] = HC_SR04_range();
+      // BluetoothSerial.println(HC_SR04_range());
+
+      prevAngle = currentAngle;
+      indexForDistances++;
+    }
+    return FINDCORNER;
+  }
+
+  stop();
+  disable_motors();
+
+  // Analyze the collected distances to find corners
+  for (int i = 1; i < indexForDistances; i++) // Start from 1 and end at 78 to avoid out of bound indexes
+  {
+    if (distances[i] > MAX_SONARDIST_CM || distances[i] < MIN_SONARDIST_CM)
+      continue; // Skip invalid readings;
+
+    // Check for a significant change in distance indicating a corner
+    // Introduce a threshold (e.g., deltaThreshold) to define what constitutes a significant change
+    float deltaThreshold = 0.3; // Adjust based on your robot's environment and sensor
+    bool isCorner = ((distances[i] - distances[i + 1]) > deltaThreshold) && 
+                    ((distances[i] - distances[i - 1]) > deltaThreshold);
+    
+    if (isCorner)
+    {
+      cornerDistances[cornerIndex] = distances[i];
+      cornerIndex++;
+      if (cornerIndex >= 8) break;
+    }
+  }
+
+  // Output the detected corners
+  BluetoothSerial.println("Corners");
+  for (int i = 0; i < cornerIndex; i++)
+  {
+    BluetoothSerial.println(cornerDistances[i]);
+  }
+  BluetoothSerial.print("Amount of Corners Indicated: ");
+  BluetoothSerial.println(cornerIndex);
+  BluetoothSerial.println("End");
+
   return RUNNING;
 }
 
@@ -412,17 +515,17 @@ STATE running() {
 
   fast_flash_double_LED_builtin();
 
-  //Arduino style 500ms timed execution statement
-  if (millis() - previous_millis > 500) {
-    previous_millis = millis();
+  // //Arduino style 500ms timed execution statement
+  // if (millis() - previous_millis > 500) {
+  //   previous_millis = millis();
 
-    BluetoothSerial.println("RUNNING---------");
-    speed_change_smooth();
+  //   BluetoothSerial.println("RUNNING---------");
+  //   speed_change_smooth();
 
-    #ifndef NO_BATTERY_V_OK
-      if (!is_battery_voltage_OK()) return STOPPED;
-    #endif
-  }
+  //   #ifndef NO_BATTERY_V_OK
+  //     if (!is_battery_voltage_OK()) return STOPPED;
+  //   #endif
+  // }
 
   return RUNNING;
 }
@@ -512,72 +615,18 @@ boolean is_battery_voltage_OK()
 }
 #endif
 
-// ----------------------Homing------------------------
-
-void findCorner()
-{  
-  cw();
-  enable_motors();
-
-  float distances[80];
-  float cornerDistances[8];
-
-  int cornerIndex = 0;
-
-  for (int i = 0; i < 80; i++) // TODO: Change to gyro so we know we done a 360 degree turn
-  {
-    // Measure Distance
-    distances[i] = HC_SR04_range();
-    delay(20);
-  }
- 
-  stop();
-  disable_motors();
-
-  // Analyze the collected distances to find corners
-  for (int i = 1; i < 79; i++) // Start from 1 and end at 78 to avoid out of bound indexes
-  {
-    if (distances[i] > MAX_SONARDIST_CM || distances[i] < MIN_SONARDIST_CM)
-      continue; // Skip invalid readings;
-
-    // Check for a significant change in distance indicating a corner
-    // Introduce a threshold (e.g., deltaThreshold) to define what constitutes a significant change
-    float deltaThreshold = 10.0; // Adjust based on your robot's environment and sensor
-    bool isCorner = (abs(distances[i] - distances[i + 1]) > deltaThreshold) && 
-                    (abs(distances[i] - distances[i - 1]) > deltaThreshold);
-    
-    if (isCorner)
-    {
-      cornerDistances[cornerIndex] = distances[i];
-      cornerIndex++;
-      // if (cornerIndex >= 8) break;
-    }
-  }
-
-  // Output the detected corners
-  BluetoothSerial.println("Corners");
-  for (int i = 0; i < cornerIndex; i++)
-  {
-    BluetoothSerial.println(cornerDistances[i]);
-  }
-  BluetoothSerial.print("Amount of Corners Indicated: ");
-  BluetoothSerial.println(cornerIndex);
-  BluetoothSerial.println("End");
-}
-
 // ----------------------Gyro------------------------
 
 void GyroSetup() 
 {
   // this section is initialize the sensor, find the value of voltage when gyro is zero
-  int i;
   float sum = 0;
   int sensorValue = 0;  // read out value of sensor
 
   pinMode(gyroSensorPin, INPUT);
-  Serial.println("please keep the sensor still for calibration");
-  Serial.println("get the gyro zero voltage");
-  for (i = 0; i < 100; i++)  // read 100 values of voltage when gyro is at still, to calculate the zero-drift.
+  BluetoothSerial.println("please keep the sensor still for calibration");
+  BluetoothSerial.println("get the gyro zero voltage");
+  for (int i = 0; i < 100; i++)  // read 100 values of voltage when gyro is at still, to calculate the zero-drift.
   {
     sensorValue = analogRead(gyroSensorPin);
     sum += sensorValue;
@@ -588,23 +637,41 @@ void GyroSetup()
 
 void getCurrentAngle() 
 {
+  if (!nonBlockingDelay(&mNonBlockingTimers.lastUpdateTimeGyro, T))
+  {
+    return;
+  }
+
   // convert the 0-1023 signal to 0-5v
-  gyroRate = (analogRead(gyroSensorPin) * gyroSupplyVoltage) / 1023;
+  float gyroRate = (analogRead(gyroSensorPin) * gyroSupplyVoltage) / 1023;
   // find the voltage offset the value of voltage when gyro is zero (still)
   gyroRate -= (gyroZeroVoltage / 1023 * gyroSupplyVoltage);
   // read out voltage divided the gyro sensitivity to calculate the angular velocity
   float angularVelocity = gyroRate / gyroSensitivity;  // from Data Sheet, gyroSensitivity is 0.007 V/dps
   // if the angular velocity is less than the threshold, ignore it
-  if (angularVelocity >= rotationThreshold || angularVelocity <= -rotationThreshold) {
+  if (abs(angularVelocity) >= rotationThreshold) {
     // we are running a loop in T (of T/1000 second).
     float angleChange = angularVelocity / (1000 / T);
     currentAngle += angleChange;
+
+    // Accumulate the angle change
+    cumulativeAngleChange += angleChange;
   }
+
   // keep the angle between 0-360
   if (currentAngle < 0) {
     currentAngle += 360;
   } else if (currentAngle > 359) {
     currentAngle -= 360;
+  }
+
+  // Check for full turns
+  if (cumulativeAngleChange >= 360) {
+    fullTurns++;
+    cumulativeAngleChange -= 360; // Reset the cumulative change after counting a turn
+  } else if (cumulativeAngleChange <= -360) {
+    fullTurns--;
+    cumulativeAngleChange += 360; // Reset the cumulative change after counting a turn
   }
 }
 
