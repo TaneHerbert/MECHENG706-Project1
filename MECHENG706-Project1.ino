@@ -19,7 +19,7 @@
 
 #define STARTUP_DELAY 1 // Seconds
 
-#define MAX_SONARDIST_CM 400
+#define MAX_SONARDIST_CM 200
 #define MIN_SONARDIST_CM 2
 
 /**
@@ -67,18 +67,6 @@ enum STATE {
 struct nonBlockingTimers
 {
   unsigned long lastUpdateTimeGyro;
-  unsigned long lastUpdateTimeCorner;
-};
-
-struct angle
-{
-  float angle;
-  float fullTurn;
-};
-
-struct allAngles 
-{
-  angle cornerAngle;
 };
 
 /**
@@ -112,13 +100,16 @@ float gyroSensitivity = 0.007; // gyro sensitivity unit is (mv/degree/second) ge
 float rotationThreshold = 1.5; // because of gyro drifting, defining rotation angular velocity less than this value will be ignored
 
 // current angle calculated by angular velocity integral on
-// Let 180 degrees be straight forward (Just ease of coding for now)
 float currentAngle = 0;
 float prevAngle = 0;
 int fullTurns = 0;  // Counter for full turns. Positive for clockwise, negative for counterclockwise
 
 float distances[100] = { 0 };
-float cornerDistances[8];
+float angles[100] = { 0 };
+
+float angleCorner[100] = {0};
+float cornerDistances[100] = {0};
+
 int cornerIndex = 0;
 int indexForDistances = 0;;
 
@@ -142,10 +133,7 @@ SoftwareSerial BluetoothSerial(BLUETOOTH_RX, BLUETOOTH_TX);
 nonBlockingTimers mNonBlockingTimers = 
 {
   .lastUpdateTimeGyro = 0,
-  .lastUpdateTimeCorner = 0
 };
-
-angle mCornerAngle;
 
 static STATE machine_state;
 
@@ -215,9 +203,6 @@ void setup(void) {
   BluetoothSerial.println("MECHENG706_Base_Code_07.03.2024");
   BluetoothSerial.println("Setup....");
 
-  // Inits
-  GyroSetup();  //Set up starting voltage for gyro
-
   machine_state = INITIALISING;
 
   // settling time but no really needed
@@ -246,6 +231,14 @@ void loop(void)  //main loop
    * Methods that must run every loop 
    */
   getCurrentAngle(); // This function must run every 100ms so is placed outside the FSM
+
+  #ifndef NO_BATTERY_V_OK
+  if (!is_battery_voltage_OK())
+  {
+    BluetoothSerial.println("BATTERY FAILURE");
+    machine_state = STOPPED;
+  }
+  #endif
 }
 
 //----------------------Motor moments------------------------
@@ -447,26 +440,27 @@ void fast_flash_double_LED_builtin()
 STATE initialising() {
   //initialising
   BluetoothSerial.println("INITIALISING....");
-  delaySeconds(1); //One second delay to see the serial string "INITIALISING...."
-  BluetoothSerial.println("Enabling Motors...");
+
+  // Inititlisations
+
   enable_motors();
+  GyroSetup();  //Set up starting voltage for gyro
+
   BluetoothSerial.println("RUNNING STATE...");
 
-  mCornerAngle.angle = currentAngle;
   return FINDCORNER;
 }
 
 STATE findCorner() {
-  enable_motors();
   cw();
 
-  // Keep continue to turn until its done 1 turn;
+  // Continue to turn until its done 1 turn;
   if (abs(fullTurns) < 1)
   {
-    if (abs(currentAngle) - abs(prevAngle) >= 5)
+    if (abs(currentAngle) - abs(prevAngle) >= 5) // Take a distance measurement for every 5 degrees turned
     {
       distances[indexForDistances] = HC_SR04_range();
-      // BluetoothSerial.println(HC_SR04_range());
+      angles[indexForDistances] = currentAngle;
 
       prevAngle = currentAngle;
       indexForDistances++;
@@ -475,10 +469,9 @@ STATE findCorner() {
   }
 
   stop();
-  disable_motors();
 
   // Analyze the collected distances to find corners
-  for (int i = 1; i < indexForDistances; i++) // Start from 1 and end at 78 to avoid out of bound indexes
+  for (int i = 1; i < indexForDistances - 1; i++) // Start from 1 and end at 78 to avoid out of bound indexes
   {
     if (distances[i] > MAX_SONARDIST_CM || distances[i] < MIN_SONARDIST_CM)
       continue; // Skip invalid readings;
@@ -491,27 +484,56 @@ STATE findCorner() {
     
     if (isCorner)
     {
-      cornerDistances[cornerIndex] = distances[i];
+      cornerDistances[cornerIndex] = distances[i - 1];
+      angleCorner[cornerIndex] = angles[i - 1];
       cornerIndex++;
-      if (cornerIndex >= 8) break;
+      cornerDistances[cornerIndex] = distances[i];
+      angleCorner[cornerIndex] = angles[i];
+      cornerIndex++;
+      cornerDistances[cornerIndex] = distances[i + 1];
+      angleCorner[cornerIndex] = angles[i + 1];
+      cornerIndex++;
+
+      if (cornerIndex >= 24) 
+        break;
     }
   }
 
   // Output the detected corners
-  BluetoothSerial.println("Corners");
+  BluetoothSerial.println("Corners/Angles");
+  BluetoothSerial.println("");
+
   for (int i = 0; i < cornerIndex; i++)
   {
-    BluetoothSerial.println(cornerDistances[i]);
+    BluetoothSerial.print("Before Corner Distance: ");
+    BluetoothSerial.print(cornerDistances[i]);
+    BluetoothSerial.print("Before Corner Angle: ");
+    BluetoothSerial.println(angleCorner[i]);
+    i++;
+    BluetoothSerial.print("Middle Distance: ");
+    BluetoothSerial.print(cornerDistances[i]);
+    BluetoothSerial.print("Middle Angle: ");
+    BluetoothSerial.println(angleCorner[i]);
+    i++;
+    BluetoothSerial.print("After Distance: ");
+    BluetoothSerial.print(cornerDistances[i]);
+    BluetoothSerial.print("After Angle: ");
+    BluetoothSerial.println(angleCorner[i]);
+    BluetoothSerial.println("");
+    i++;
   }
+
   BluetoothSerial.print("Amount of Corners Indicated: ");
-  BluetoothSerial.println(cornerIndex);
+  BluetoothSerial.println(cornerIndex/3);
+  BluetoothSerial.print("Distances/Angles Measured:");
+  BluetoothSerial.println(indexForDistances);
   BluetoothSerial.println("End");
 
   return RUNNING;
 }
 
 STATE running() {
-  static unsigned long previous_millis;
+  // static unsigned long previous_millis;
 
   fast_flash_double_LED_builtin();
 
@@ -522,48 +544,19 @@ STATE running() {
   //   BluetoothSerial.println("RUNNING---------");
   //   speed_change_smooth();
 
-  //   #ifndef NO_BATTERY_V_OK
-  //     if (!is_battery_voltage_OK()) return STOPPED;
-  //   #endif
+    // #ifndef NO_BATTERY_V_OK
+    //   if (!is_battery_voltage_OK()) return STOPPED;
+    // #endif
   // }
 
   return RUNNING;
 }
 
 STATE stopped() {
-  static byte counter_lipo_voltage_ok;
-  static unsigned long previous_millis;
-  int Lipo_level_cal;
-
+  stop();
   disable_motors();
   slow_flash_LED_builtin();
 
-  //print massage every 500ms
-  if (millis() - previous_millis > 500) {
-    previous_millis = millis();
-    BluetoothSerial.println("STOPPED---------");
-
-    #ifndef NO_BATTERY_V_OK
-      //500ms timed if statement to check lipo and output speed settings
-      if (is_battery_voltage_OK()) {
-        BluetoothSerial.print("Lipo OK waiting of voltage Counter 10 < ");
-        BluetoothSerial.println(counter_lipo_voltage_ok);
-
-        counter_lipo_voltage_ok++;
-
-        //Making sure lipo voltage is stable
-        if (counter_lipo_voltage_ok > 10) {
-          counter_lipo_voltage_ok = 0;
-          enable_motors();
-          BluetoothSerial.println("Lipo OK returning to RUN STATE");
-          return RUNNING;
-        }
-      } 
-      else {
-        counter_lipo_voltage_ok = 0;
-      }
-    #endif
-  }
   return STOPPED;
 }
 
