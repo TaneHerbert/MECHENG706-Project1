@@ -15,7 +15,7 @@
   * Public Defines
   */
 
-// #define NO_BATTERY_V_OK // Uncomment of BATTERY_V_OK if you do not care about battery damage.
+#define NO_BATTERY_V_OK // Uncomment of BATTERY_V_OK if you do not care about battery damage.
 
 #define STARTUP_DELAY 1 // Seconds
 
@@ -90,7 +90,7 @@ float bLV;
 float bRV;
 
 // Time of one loop, 0.1 s
-int T = 100;
+int T = 70;
 
 // Voltage when gyro is initialised
 float gyroZeroVoltage = 0;
@@ -104,11 +104,11 @@ float currentAngle = 0;
 float prevAngle = 0;
 int fullTurns = 0;  // Counter for full turns. Positive for clockwise, negative for counterclockwise
 
-float distances[100] = { 0 };
-float angles[100] = { 0 };
+float distances[200] = { 0 };
+float angles[200] = { 0 };
 
-float angleCorner[100] = {0};
-float cornerDistances[100] = {0};
+float angleCorner[200] = {0};
+float cornerDistances[200] = {0};
 
 int cornerIndex = 0;
 int indexForDistances = 0;;
@@ -120,7 +120,7 @@ float cumulativeAngleChange = 0;
 const unsigned int MAX_DIST = 23200;
 
 // Motor Speed
-int speed_val = 150;
+int speed_val = 100;
 int speed_change;
 
 Servo left_font_motor;   // create servo object to control Vex Motor Controller 29
@@ -191,7 +191,8 @@ boolean is_battery_voltage_OK();
  * Set up
  */
 
-void setup(void) {
+void setup(void) 
+{
   pinMode(LED_BUILTIN, OUTPUT);
 
   // The Trigger pin will tell the sensor to range find
@@ -199,8 +200,7 @@ void setup(void) {
   digitalWrite(TRIG_PIN, LOW);
 
   BluetoothSerial.begin(115200);
-
-  BluetoothSerial.println("MECHENG706_Base_Code_07.03.2024");
+  BluetoothSerial.println("MECHENG706_CODE");
   BluetoothSerial.println("Setup....");
 
   machine_state = INITIALISING;
@@ -215,9 +215,11 @@ void loop(void)  //main loop
   switch (machine_state) {
     case INITIALISING:
       machine_state = initialising();
+      currentAngle = 0;
       break;
     case FINDCORNER:
       machine_state = findCorner();
+      // machine_state = RUNNING;
       break;
     case RUNNING:  //Lipo Battery Volage OK
       machine_state = running();
@@ -242,14 +244,13 @@ void loop(void)  //main loop
 }
 
 //----------------------Motor moments------------------------
-//The Vex Motor Controller 29 use Servo Control signals to determine speed and direction, with 0 degrees meaning neutral https://en.wikipedia.org/wiki/Servo_control
 
 void disable_motors()
 {
   left_font_motor.detach();  // detach the servo on pin left_front to turn Vex Motor Controller 29 Off
   left_rear_motor.detach();  // detach the servo on pin left_rear to turn Vex Motor Controller 29 Off
-  right_rear_motor.detach();  // detach the servo on pin right_rear to turn Vex Motor Controller 29 Off
-  right_font_motor.detach();  // detach the servo on pin right_front to turn Vex Motor Controller 29 Off
+  right_rear_motor.detach(); // detach the servo on pin right_rear to turn Vex Motor Controller 29 Off
+  right_font_motor.detach(); // detach the servo on pin right_front to turn Vex Motor Controller 29 Off
 
   pinMode(left_front, INPUT);
   pinMode(left_rear, INPUT);
@@ -457,7 +458,7 @@ STATE findCorner() {
   // Continue to turn until its done 1 turn;
   if (abs(fullTurns) < 1)
   {
-    if (abs(currentAngle) - abs(prevAngle) >= 5) // Take a distance measurement for every 5 degrees turned
+    if (abs(abs(currentAngle) - abs(prevAngle)) >= 3) // Take a distance measurement for every 3 degrees turned
     {
       distances[indexForDistances] = HC_SR04_range();
       angles[indexForDistances] = currentAngle;
@@ -478,7 +479,7 @@ STATE findCorner() {
 
     // Check for a significant change in distance indicating a corner
     // Introduce a threshold (e.g., deltaThreshold) to define what constitutes a significant change
-    float deltaThreshold = 0.3; // Adjust based on your robot's environment and sensor
+    float deltaThreshold = 2; // Adjust based on your robot's environment and sensor
     bool isCorner = ((distances[i] - distances[i + 1]) > deltaThreshold) && 
                     ((distances[i] - distances[i - 1]) > deltaThreshold);
     
@@ -506,25 +507,24 @@ STATE findCorner() {
   for (int i = 0; i < cornerIndex; i++)
   {
     BluetoothSerial.print("Before Corner Distance: ");
-    BluetoothSerial.print(cornerDistances[i]);
+    BluetoothSerial.println(cornerDistances[i]);
     BluetoothSerial.print("Before Corner Angle: ");
     BluetoothSerial.println(angleCorner[i]);
     i++;
     BluetoothSerial.print("Middle Distance: ");
-    BluetoothSerial.print(cornerDistances[i]);
+    BluetoothSerial.println(cornerDistances[i]);
     BluetoothSerial.print("Middle Angle: ");
     BluetoothSerial.println(angleCorner[i]);
     i++;
     BluetoothSerial.print("After Distance: ");
-    BluetoothSerial.print(cornerDistances[i]);
+    BluetoothSerial.println(cornerDistances[i]);
     BluetoothSerial.print("After Angle: ");
     BluetoothSerial.println(angleCorner[i]);
     BluetoothSerial.println("");
-    i++;
   }
 
   BluetoothSerial.print("Amount of Corners Indicated: ");
-  BluetoothSerial.println(cornerIndex/3);
+  BluetoothSerial.println((cornerIndex + 1) /3);
   BluetoothSerial.print("Distances/Angles Measured:");
   BluetoothSerial.println(indexForDistances);
   BluetoothSerial.println("End");
@@ -536,6 +536,8 @@ STATE running() {
   // static unsigned long previous_millis;
 
   fast_flash_double_LED_builtin();
+  BluetoothSerial.println(currentAngle);
+  // delay(500);
 
   // //Arduino style 500ms timed execution statement
   // if (millis() - previous_millis > 500) {
