@@ -30,11 +30,11 @@
 
 #define frontLeft 97  // SHORT RANGE IR
 #define backLeft 69   // LONG RANGE IR
-#define frontRight 8 // LONG RANGE IR
-#define backRight 66  // SHORT RANGE IR
+#define frontRight 66 // SHORT RANGE IR
+#define backRight 8  // LONG RANGE IR
 
-const int IR_PIN_FL = A5;
-const int IR_PIN_BL = A7;
+const int IR_PIN_FL = A5; // Measured from PIN A5
+const int IR_PIN_BL = A7; 
 const int IR_PIN_FR = A4;
 const int IR_PIN_BR = A6;
 
@@ -662,48 +662,48 @@ void getCurrentAngle()
 void updateIRDistance(int irSensor)
 {
   //update voltage/distance reading for front left IR sensor  
-  if (irSensor == backLeft){
-    bLV = analogRead(IR_PIN_FL) * (5.0 / 1023.0);
+  if (irSensor == frontLeft){
+    fLV = analogRead(IR_PIN_FL) * (5.0 / 1023.0);
     // If voltage within accurate range, set to calculated distance
-    if (bLV < 2.75){
-      backLeftDistance = 11.26 * pow(bLV, 4) -104.53 * pow(bLV, 3) + 358.65 * pow(bLV, 2) -565.76 * bLV + 413.57;
+    if (fLV < 2.75){
+      frontLeftDistance = 11.26 * pow(fLV, 4) -104.53 * pow(fLV, 3) + 358.65 * pow(fLV, 2) -565.76 * fLV + 413.57;
     } 
   // Else set to minimum accurate reading    
     else {
-      backLeftDistance = 40;
+      frontLeftDistance = 40;
     }
   }
 
   //update voltage/distance reading for back left IR sensor  
-  if (irSensor == frontLeft){
-    fLV = analogRead(IR_PIN_BL) * (5.0 / 1023.0);
-    if (fLV < 2.25){
-      frontLeftDistance = 33.131 * pow(fLV, 4) -279.98 * pow(fLV, 3) + 874.14 * pow(fLV, 2) -1273.4 * fLV + 877.73;
+  if (irSensor == backLeft){
+    bLV = analogRead(IR_PIN_BL) * (5.0 / 1023.0);
+    if (bLV < 2.25){
+      backLeftDistance = 33.131 * pow(bLV, 4) -279.98 * pow(bLV, 3) + 874.14 * pow(bLV, 2) -1273.4 * bLV + 877.73;
     } 
     else {
-      frontLeftDistance = 100;
+      backLeftDistance = 100;
     }
   }
 
   //update voltage/distance reading for back right IR sensor  
-  if (irSensor == backRight){
-    bRV = analogRead(IR_PIN_BR) * (5.0 / 1023.0);
-    if (bRV < 2.57){
-      backRightDistance = 72.89 * pow(bRV, 4) -603.88 * pow(bRV, 3) + 1816.2 * pow(bRV, 2) -2438.6 * bRV + 1415;
+  if (irSensor == frontRight){
+    fRV = analogRead(IR_PIN_FR) * (5.0 / 1023.0);
+    if (fRV < 2.57){
+      frontRightDistance = 72.89 * pow(fRV, 4) -603.88 * pow(fRV, 3) + 1816.2 * pow(fRV, 2) -2438.6 * fRV + 1415;
     } 
     else {
-      backRightDistance = 40;
+      frontRightDistance = 40;
     }
   }
 
   //update voltage/distance reading for front right IR sensor  
-  if (irSensor == frontRight){
-    fRV = analogRead(IR_PIN_FR) * (5.0 / 1023.0);
+  if (irSensor == backRight){
+    bRV = analogRead(IR_PIN_BR) * (5.0 / 1023.0);
     if (bRV < 2.38){
-      frontRightDistance = 33.515 * pow(fRV, 4) -236.7 * pow(fRV, 3) + 627.52 * pow(fRV, 2) -788.81 * fRV + 478.65;
+      backRightDistance = 33.515 * pow(bRV, 4) -236.7 * pow(bRV, 3) + 627.52 * pow(bRV, 2) -788.81 * bRV + 478.65;
     } 
     else {
-      frontRightDistance = 100;
+      backRightDistance = 100;
     }
   }
 }
