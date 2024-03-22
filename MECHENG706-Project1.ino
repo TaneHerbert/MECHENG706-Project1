@@ -194,8 +194,8 @@ void loop(void)  //main loop
 
   BluetoothSerial.println("***************************************");
 
-  updateCoordinates();
-
+  //updateCoordinates();
+  /*
   BluetoothSerial.println("X-Coordinate (measured from Sonar):");
 
   BluetoothSerial.println(xCoordinate);
@@ -203,10 +203,35 @@ void loop(void)  //main loop
   BluetoothSerial.println("Y-Coordinate (measured from IR):");
 
   BluetoothSerial.println(yCoordinate);
-
+  */
+  updateIRDistance(frontLeft);
   BluetoothSerial.print("Front Left Distance from wall: ");
   BluetoothSerial.println(frontLeftDistance);
+  BluetoothSerial.print("Front Left Voltage: ");
+  BluetoothSerial.println(fLV);
+  BluetoothSerial.println("***************************************");
 
+    updateIRDistance(frontRight);
+  BluetoothSerial.print("Front right Distance from wall: ");
+  BluetoothSerial.println(frontRightDistance);
+  BluetoothSerial.print("Front right Voltage: ");
+  BluetoothSerial.println(fRV);
+  BluetoothSerial.println("***************************************");
+
+    updateIRDistance(backLeft);
+  BluetoothSerial.print("Back Left Distance from wall: ");
+  BluetoothSerial.println(backLeftDistance);
+  BluetoothSerial.print("Back Left Voltage: ");
+  BluetoothSerial.println(bLV);
+  BluetoothSerial.println("***************************************");
+  
+    updateIRDistance(backRight);
+  BluetoothSerial.print("back right Distance from wall: ");
+  BluetoothSerial.println(backRightDistance);
+  BluetoothSerial.print("Back Right  Voltage: ");
+  BluetoothSerial.println(bRV);
+
+  /*
   BluetoothSerial.print("Back Left Distance from wall: ");
   BluetoothSerial.println(backLeftDistance);
 
@@ -215,7 +240,7 @@ void loop(void)  //main loop
 
   BluetoothSerial.print("Back Right Distance from wall: ");
   BluetoothSerial.println(backRightDistance);
-
+  */
   /*
   getCurrentAngle();
   Serial.println(currentAngle);
@@ -663,7 +688,7 @@ void updateIRDistance(int irSensor)
 {
   //update voltage/distance reading for front left IR sensor  
   if (irSensor == frontLeft){
-    fLV = analogRead(IR_PIN_FL) * (5.0 / 1023.0);
+    fLV = (float)analogRead(IR_PIN_FL) * (5.0 / 1023.0);
     // If voltage within accurate range, set to calculated distance
     if (fLV < 2.75){
       frontLeftDistance = 11.26 * pow(fLV, 4) -104.53 * pow(fLV, 3) + 358.65 * pow(fLV, 2) -565.76 * fLV + 413.57;
@@ -676,7 +701,7 @@ void updateIRDistance(int irSensor)
 
   //update voltage/distance reading for back left IR sensor  
   if (irSensor == backLeft){
-    bLV = analogRead(IR_PIN_BL) * (5.0 / 1023.0);
+    bLV = (float)analogRead(IR_PIN_BL) * (5.0 / 1023.0);
     if (bLV < 2.25){
       backLeftDistance = 33.131 * pow(bLV, 4) -279.98 * pow(bLV, 3) + 874.14 * pow(bLV, 2) -1273.4 * bLV + 877.73;
     } 
@@ -687,7 +712,7 @@ void updateIRDistance(int irSensor)
 
   //update voltage/distance reading for back right IR sensor  
   if (irSensor == frontRight){
-    fRV = analogRead(IR_PIN_FR) * (5.0 / 1023.0);
+    fRV = (float)analogRead(IR_PIN_FR) * (5.0 / 1023.0);
     if (fRV < 2.57){
       frontRightDistance = 72.89 * pow(fRV, 4) -603.88 * pow(fRV, 3) + 1816.2 * pow(fRV, 2) -2438.6 * fRV + 1415;
     } 
@@ -698,7 +723,7 @@ void updateIRDistance(int irSensor)
 
   //update voltage/distance reading for front right IR sensor  
   if (irSensor == backRight){
-    bRV = analogRead(IR_PIN_BR) * (5.0 / 1023.0);
+    bRV = (float)analogRead(IR_PIN_BR) * (5.0 / 1023.0);
     if (bRV < 2.38){
       backRightDistance = 33.515 * pow(bRV, 4) -236.7 * pow(bRV, 3) + 627.52 * pow(bRV, 2) -788.81 * bRV + 478.65;
     } 
