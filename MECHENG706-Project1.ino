@@ -69,6 +69,11 @@ struct nonBlockingTimers
   unsigned long lastUpdateTimeGyro;
 };
 
+struct IRSensor
+{
+  const int IR_PIN;
+};
+
 /**
   * Public Variables
   */
@@ -137,6 +142,11 @@ nonBlockingTimers mNonBlockingTimers =
 
 static STATE machine_state;
 
+static IRSensor IR_FL = { .IR_PIN = A5 };
+static IRSensor IR_BL = { .IR_PIN = A7 };
+static IRSensor IR_FR = { .IR_PIN = A4 };
+static IRSensor IR_BR = { .IR_PIN = A6 };
+
 /**
  * Private Decleration 
  */
@@ -187,6 +197,9 @@ STATE findCorner();
 // Battery Voltage
 boolean is_battery_voltage_OK();
 
+// IR Distance
+float getIRDistance(IRSensor IRSensor);
+
 /**
  * Set up
  */
@@ -228,10 +241,10 @@ void loop(void)  //main loop
       break;
   };
 
-  /**
-   * Methods that must run every loop 
-   */
-  getCurrentAngle(); // This function must run every 100ms so is placed outside the FSM
+  // /**
+  //  * Methods that must run every loop 
+  //  */
+  // getCurrentAngle(); // This function must run every 100ms so is placed outside the FSM
 
   #ifndef NO_BATTERY_V_OK
   if (!is_battery_voltage_OK())
@@ -452,83 +465,111 @@ STATE initialising() {
 }
 
 STATE findCorner() {
-  cw();
+  float distance;
 
-  // Continue to turn until its done 1 turn;
-  if (abs(fullTurns) < 1)
-  {
-    if (abs(abs(currentAngle) - abs(prevAngle)) >= 3) // Take a distance measurement for every 3 degrees turned
-    {
-      distances[indexForDistances] = HC_SR04_range();
-      angles[indexForDistances] = currentAngle;
+  distance = getIRDistance(IR_BL);
+  BluetoothSerial.print("Back Left Distance: ");
+  BluetoothSerial.println(distance);
 
-      prevAngle = currentAngle;
-      indexForDistances++;
-    }
-    return FINDCORNER;
-  }
+  delay(2000);
 
-  stop();
+  distance = getIRDistance(IR_BR);
+  BluetoothSerial.print("Back Right Distance: ");
+  BluetoothSerial.println(distance);
 
-  // Analyze the collected distances to find corners
-  for (int i = 1; i < indexForDistances - 1; i++) // Start from 1 and end at 78 to avoid out of bound indexes
-  {
-    if (distances[i] > MAX_SONARDIST_CM || distances[i] < MIN_SONARDIST_CM)
-      continue; // Skip invalid readings;
+  delay(2000);
 
-    // Check for a significant change in distance indicating a corner
-    // Introduce a threshold (e.g., deltaThreshold) to define what constitutes a significant change
-    float deltaThreshold = 2; // Adjust based on your robot's environment and sensor
-    bool isCorner = ((distances[i] - distances[i + 1]) > deltaThreshold) && 
-                    ((distances[i] - distances[i - 1]) > deltaThreshold);
+  distance = getIRDistance(IR_FL);
+  BluetoothSerial.print("Front Left Distance: ");
+  BluetoothSerial.println(distance);
+
+  delay(2000);
+
+  distance = getIRDistance(IR_FR);
+  BluetoothSerial.print("Front Right Distance: ");
+  BluetoothSerial.println(distance);
+
+  delay(5000);
+  BluetoothSerial.println();
+
+  return FINDCORNER;
+  // cw();
+
+  // // Continue to turn until its done 1 turn;
+  // if (abs(fullTurns) < 1)
+  // {
+  //   if (abs(abs(currentAngle) - abs(prevAngle)) >= 3) // Take a distance measurement for every 3 degrees turned
+  //   {
+  //     distances[indexForDistances] = HC_SR04_range();
+  //     angles[indexForDistances] = currentAngle;
+
+  //     prevAngle = currentAngle;
+  //     indexForDistances++;
+  //   }
+  //   return FINDCORNER;
+  // }
+
+  // stop();
+
+  // // Analyze the collected distances to find corners
+  // for (int i = 1; i < indexForDistances - 1; i++) // Start from 1 and end at 78 to avoid out of bound indexes
+  // {
+  //   if (distances[i] > MAX_SONARDIST_CM || distances[i] < MIN_SONARDIST_CM)
+  //     continue; // Skip invalid readings;
+
+  //   // Check for a significant change in distance indicating a corner
+  //   // Introduce a threshold (e.g., deltaThreshold) to define what constitutes a significant change
+  //   float deltaThreshold = 2; // Adjust based on your robot's environment and sensor
+  //   bool isCorner = ((distances[i] - distances[i + 1]) > deltaThreshold) && 
+  //                   ((distances[i] - distances[i - 1]) > deltaThreshold);
     
-    if (isCorner)
-    {
-      cornerDistances[cornerIndex] = distances[i - 1];
-      angleCorner[cornerIndex] = angles[i - 1];
-      cornerIndex++;
-      cornerDistances[cornerIndex] = distances[i];
-      angleCorner[cornerIndex] = angles[i];
-      cornerIndex++;
-      cornerDistances[cornerIndex] = distances[i + 1];
-      angleCorner[cornerIndex] = angles[i + 1];
-      cornerIndex++;
+  //   if (isCorner)
+  //   {
+  //     cornerDistances[cornerIndex] = distances[i - 1];
+  //     angleCorner[cornerIndex] = angles[i - 1];
+  //     cornerIndex++;
+  //     cornerDistances[cornerIndex] = distances[i];
+  //     angleCorner[cornerIndex] = angles[i];
+  //     cornerIndex++;
+  //     cornerDistances[cornerIndex] = distances[i + 1];
+  //     angleCorner[cornerIndex] = angles[i + 1];
+  //     cornerIndex++;
 
-      if (cornerIndex >= 24) 
-        break;
-    }
-  }
+  //     if (cornerIndex >= 24) 
+  //       break;
+  //   }
+  // }
 
-  // Output the detected corners
-  BluetoothSerial.println("Corners/Angles");
-  BluetoothSerial.println("");
+  // // Output the detected corners
+  // BluetoothSerial.println("Corners/Angles");
+  // BluetoothSerial.println("");
 
-  for (int i = 0; i < cornerIndex; i++)
-  {
-    BluetoothSerial.print("Before Corner Distance: ");
-    BluetoothSerial.println(cornerDistances[i]);
-    BluetoothSerial.print("Before Corner Angle: ");
-    BluetoothSerial.println(angleCorner[i]);
-    i++;
-    BluetoothSerial.print("Middle Distance: ");
-    BluetoothSerial.println(cornerDistances[i]);
-    BluetoothSerial.print("Middle Angle: ");
-    BluetoothSerial.println(angleCorner[i]);
-    i++;
-    BluetoothSerial.print("After Distance: ");
-    BluetoothSerial.println(cornerDistances[i]);
-    BluetoothSerial.print("After Angle: ");
-    BluetoothSerial.println(angleCorner[i]);
-    BluetoothSerial.println("");
-  }
+  // for (int i = 0; i < cornerIndex; i++)
+  // {
+  //   BluetoothSerial.print("Before Corner Distance: ");
+  //   BluetoothSerial.println(cornerDistances[i]);
+  //   BluetoothSerial.print("Before Corner Angle: ");
+  //   BluetoothSerial.println(angleCorner[i]);
+  //   i++;
+  //   BluetoothSerial.print("Middle Distance: ");
+  //   BluetoothSerial.println(cornerDistances[i]);
+  //   BluetoothSerial.print("Middle Angle: ");
+  //   BluetoothSerial.println(angleCorner[i]);
+  //   i++;
+  //   BluetoothSerial.print("After Distance: ");
+  //   BluetoothSerial.println(cornerDistances[i]);
+  //   BluetoothSerial.print("After Angle: ");
+  //   BluetoothSerial.println(angleCorner[i]);
+  //   BluetoothSerial.println("");
+  // }
 
-  BluetoothSerial.print("Amount of Corners Indicated: ");
-  BluetoothSerial.println((cornerIndex + 1) /3);
-  BluetoothSerial.print("Distances/Angles Measured:");
-  BluetoothSerial.println(indexForDistances);
-  BluetoothSerial.println("End");
+  // BluetoothSerial.print("Amount of Corners Indicated: ");
+  // BluetoothSerial.println((cornerIndex + 1) /3);
+  // BluetoothSerial.print("Distances/Angles Measured:");
+  // BluetoothSerial.println(indexForDistances);
+  // BluetoothSerial.println("End");
 
-  return RUNNING;
+  // return RUNNING;
 }
 
 STATE running() {
@@ -806,4 +847,32 @@ void updateIRDistance(int irSensor)
       wallDirection = 1;
     }
   }
-  
+
+  float getIRDistance(IRSensor IRSensor)
+  {
+    float voltage = analogRead(IRSensor.IR_PIN) * (5.0 / 1023.0);
+    float distance = 0;
+
+    if (IRSensor.IR_PIN == A5) // Front Left Infrared
+    {
+      distance = 11.26 * pow(voltage, 4) -104.53 * pow(voltage, 3) + 358.65 * pow(voltage, 2) -565.76 * voltage + 413.57;
+    }
+    else if (IRSensor.IR_PIN == A7) // Back Left Infrared
+    {
+      distance = 50.961 * pow(voltage, 4) -355.71 * pow(voltage, 3) + 972.91 * pow(voltage, 2) -1316.4 * voltage + 882.22;
+    }
+    else if (IRSensor.IR_PIN == A4) // Front Right Infrared
+    {
+      distance = 130.26 * pow(voltage, 4) -889.33 * pow(voltage, 3) + 2284.3 * pow(voltage, 2) -2732.8 * voltage + 478.65;
+    }
+    else if (IRSensor.IR_PIN == A6) // Back Right Infrared
+    {
+      distance = 33.515 * pow(voltage, 4) -236.7 * pow(voltage, 3) + 627.52 * pow(voltage, 2) -788.81 * voltage + 478.65;
+    }
+    else
+    {
+      return 0.0;
+    }
+
+    return distance;
+  }
