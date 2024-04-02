@@ -806,3 +806,4 @@ void updateIRDistance(int irSensor)
       wallDirection = 1;
     }
   }
+  
