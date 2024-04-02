@@ -219,7 +219,6 @@ void loop(void)  //main loop
       break;
     case FINDCORNER:
       machine_state = findCorner();
-      // machine_state = RUNNING;
       break;
     case RUNNING:  //Lipo Battery Volage OK
       machine_state = running();
@@ -535,7 +534,7 @@ STATE findCorner() {
 STATE running() {
   // static unsigned long previous_millis;
 
-  fast_flash_double_LED_builtin();
+  // fast_flash_double_LED_builtin();
   BluetoothSerial.println(currentAngle);
   // delay(500);
 
@@ -630,6 +629,7 @@ void GyroSetup()
   gyroZeroVoltage = sum / 100;  // average the sum as the zero drifting
 }
 
+// TODO: ALWAYS THINKS T = 100 when in fact could be slightly above or below. Need to get actual difference from non blocking delay
 void getCurrentAngle() 
 {
   if (!nonBlockingDelay(&mNonBlockingTimers.lastUpdateTimeGyro, T))
