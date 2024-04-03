@@ -10,6 +10,7 @@
 
 #include <SoftwareSerial.h>
 #include <Servo.h>  //Need for Servo pulse output
+#include <Eigen.h> // Needed for computing Kalman Filters
 
 /**
   * Public Defines
@@ -769,3 +770,157 @@ void updateIRDistance(int irSensor)
       wallDirection = 1;
     }
   }
+
+// Kalman filter is for filtering positions
+// PID is for actuating the motors based on position readings
+
+/****************************************
+       Kalman Filter Implementation
+****************************************/
+
+class KalmanFilter {
+public:
+    KalmanFilter() {
+        // Initialise state vector [X position, Y position, Z position, X velocity, Y velocity]
+        x = Eigen::Matrix<float, 5, 1>();
+        x << 150.0, 150.0, 0.0, 0.0, 0.0;
+
+        // Initialise error covariance matrix P with some initial uncertainty
+        P = Eigen::Matrix<float, 5, 5>::Identity();
+        P *= 1.0; // Adjust this to set initial uncertainty
+
+        // Initialise state transition matrix A
+        A = Eigen::Matrix<float, 5, 5>::Identity();
+        const float dt = 1.0; // Time step
+        A(0, 3) = dt; // Update X position with X velocity
+        A(1, 4) = dt; // Update Y position with Y velocity
+
+        // No control input in this example, but B matrix initialised for completeness
+        B = Eigen::Matrix<float, 5, 2>::Zero(); // Adjust if control inputs exist
+
+        // Initialise process noise covariance matrix Q
+        float process_noise_pos_x = 0.1; // Adjust these values based on expected system noise
+        float process_noise_pos_y = 0.1;
+        float process_noise_vel = 0.1;
+        Q = Eigen::Matrix<float, 5, 5>::Zero();
+        Q(0, 0) = process_noise_pos;
+        Q(1, 1) = process_noise_pos;
+        Q(2, 2) = 0; // no noise in z-process as no rotation in process
+        Q(3, 3) = process_noise_vel;
+        Q(4, 4) = process_noise_vel;
+
+        // Initialise measurement matrix H (measuring position + X&Y velocities)
+        H = Eigen::Matrix<float, 5, 5>::Identity();
+
+        // Initialise measurement noise covariance matrix R
+        float measurement_noise_pos_x = 1; // Adjust based on measurement noise
+        float measurement_noise_pos_y = 1.5;
+        float measurement_noise_pos_z = 4;
+        float measurement_noise_vel_x = 0;
+        float measurement_noise_vel_y = 0;
+
+        R = Eigen::Matrix<float, 3, 3>::Zero();
+        R(0, 0) = measurement_noise_pos_x; // Measurement noise for X position
+        R(1, 1) = measurement_noise_pos_y; // Measurement noise for Y position
+        R(2, 2) = measurement_noise_pos_z; // Measurement noise for Z position
+        R(3, 3) = measurement_noise_vel_x; // Measurement noise for X velocity
+        R(4, 4) = measurement_noise_vel_y; // Measurement noise for Y velocity
+    }
+
+    // Assume an enum to define the control stages
+    enum ControlStage { 
+        MOVE_X,
+        MOVE_Y,
+        MOVE_NEG_X
+    };
+
+    // Function to change the control stage based on your logic
+    /*
+    Here is what usage of the function will look like
+    kf.setControlStage(KalmanFilter::MOVE_X)
+    It will be called when the error from the PID controller
+    is within desirable range to move on and then
+    */
+    void setControlStage(ControlStage stage) {
+        controlStage = stage;
+    }
+
+    // Placeholder functions for predict and update steps
+    void predict() {
+        // Define the time step
+        const float dt = 1.0; // Adjust as necessary
+
+        // Reset the state transition matrix
+        A = Eigen::Matrix<float, 5, 5>::Identity();
+        
+        // Update the state transition matrix A based on the current control stage
+        switch (controlStage) {
+            case MOVE_X:
+                // Moving in the x-direction
+                A(0, 3) = dt; // x_pos changes with x_vel
+                break;
+            case MOVE_Y:
+                // Moving in the y-direction
+                A(1, 4) = dt; // y_pos changes with y_vel
+                break;
+            case MOVE_NEG_X:
+                // Moving in the negative x-direction
+                A(0, 3) = -dt; // x_pos changes with negative x_vel
+                break;
+        }
+
+        // State prediction: x' = A * x
+        x = A * x;
+
+        // Error covariance prediction: P' = A * P * A^T + Q
+        P = A * P * A.transpose() + Q;
+    }
+
+    void update(const Eigen::Matrix<float, 5, 1>& z) {
+        // The input of this function is the 5by1 matrix
+        // (0,0) x coordinate
+        // (1,1) y coordinate
+        // (2,2) z coordinate (rotation)
+        // (3,3) x velocity
+        // (4,4) y velocity
+
+    // Innovation: y = z - H * x
+    Eigen::Matrix<float, 5, 1> y = z - H * x;
+
+    // Innovation covariance: S = H * P * H^T + R
+    Eigen::Matrix<float, 3, 3> S = H * P * H.transpose() + R;
+
+    // Kalman Gain: K = P * H^T * S^(-1)
+    Eigen::Matrix<float, 5, 3> K = P * H.transpose() * S.inverse();
+
+    // Update state estimate: x = x + K * y
+    x = x + K * y;
+
+    // Update error covariance: P = (I - K * H) * P
+    P = (Eigen::Matrix<float, 5, 5>::Identity() - K * H) * P;
+            
+    }
+
+private:
+    Eigen::Matrix<float, 5, 1> x; // State vector
+    Eigen::Matrix<float, 5, 5> P; // Error covariance matrix
+    Eigen::Matrix<float, 5, 5> A; // State transition matrix
+    Eigen::Matrix<float, 5, 2> B; // Control input matrix
+    Eigen::Matrix<float, 5, 5> Q; // Process noise covariance matrix
+    Eigen::Matrix<float, 3, 5> H; // Measurement matrix
+    Eigen::Matrix<float, 3, 3> R; // Measurement noise covariance matrix
+};
+
+/* Usage
+KalmanFilter kf;
+kf.setControlStage(KalmanFilter::MOVE_X);
+
+kf.predict() and kf.update(z)
+ would be called within your logic, 
+ where z is the measurement vector
+
+*/
+
+/****************************************
+           PID Implementation
+****************************************/
