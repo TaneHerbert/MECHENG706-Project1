@@ -64,6 +64,12 @@ enum STATE {
   STOPPED
 };
 
+enum IRSENSORTYPE
+{
+  SHORTRANGE,
+  LONGRANGE
+};
+
 struct nonBlockingTimers
 {
   unsigned long lastUpdateTimeGyro;
@@ -72,6 +78,7 @@ struct nonBlockingTimers
 struct IRSensor
 {
   const int IR_PIN;
+  IRSENSORTYPE mSensorType;
 };
 
 /**
@@ -142,10 +149,10 @@ nonBlockingTimers mNonBlockingTimers =
 
 static STATE machine_state;
 
-static IRSensor IR_FL = { .IR_PIN = A5 };
-static IRSensor IR_BL = { .IR_PIN = A7 };
-static IRSensor IR_FR = { .IR_PIN = A4 };
-static IRSensor IR_BR = { .IR_PIN = A6 };
+static IRSensor IR_FL = { .IR_PIN = A5, .mSensorType = SHORTRANGE };
+static IRSensor IR_BL = { .IR_PIN = A7, .mSensorType = LONGRANGE  };
+static IRSensor IR_FR = { .IR_PIN = A9, .mSensorType = LONGRANGE  };
+static IRSensor IR_BR = { .IR_PIN = A11, .mSensorType = SHORTRANGE }; // Was A6
 
 /**
  * Private Decleration 
@@ -465,31 +472,32 @@ STATE initialising() {
 }
 
 STATE findCorner() {
-  float distance;
+  float voltage;
 
-  distance = getIRDistance(IR_BL);
-  BluetoothSerial.print("Back Left Distance: ");
-  BluetoothSerial.println(distance);
+  // voltage = getIRDistance(IR_BL);
+  // BluetoothSerial.print("Back Left Voltage: ");
+  // BluetoothSerial.println(voltage);
 
-  delay(2000);
+  // delay(2000);
+  fast_flash_double_LED_builtin();
 
-  distance = getIRDistance(IR_BR);
-  BluetoothSerial.print("Back Right Distance: ");
-  BluetoothSerial.println(distance);
-
-  delay(2000);
-
-  distance = getIRDistance(IR_FL);
-  BluetoothSerial.print("Front Left Distance: ");
-  BluetoothSerial.println(distance);
+  voltage = getIRDistance(IR_BR);
+  BluetoothSerial.print("Back Right Voltage: ");
+  BluetoothSerial.println(voltage);
 
   delay(2000);
 
-  distance = getIRDistance(IR_FR);
-  BluetoothSerial.print("Front Right Distance: ");
-  BluetoothSerial.println(distance);
+  // voltage = getIRDistance(IR_FL);
+  // BluetoothSerial.print("Front Left Voltage: ");
+  // BluetoothSerial.println(voltage);
 
-  delay(5000);
+  // delay(2000);
+
+  voltage = getIRDistance(IR_FR);
+  BluetoothSerial.print("Front Right Voltage: ");
+  BluetoothSerial.println(voltage);
+
+  delay(2000);
   BluetoothSerial.println();
 
   return FINDCORNER;
@@ -850,24 +858,37 @@ void updateIRDistance(int irSensor)
 
   float getIRDistance(IRSensor IRSensor)
   {
-    float voltage = analogRead(IRSensor.IR_PIN) * (5.0 / 1023.0);
+    int iteration = 0;
+    float totalVoltage = 0;
+
+    for (size_t i = 0; i < 5; i++)
+    {
+      totalVoltage += analogRead(IRSensor.IR_PIN);
+      iteration++;
+      if (IRSensor.mSensorType == SHORTRANGE) // Short range sensors
+        delay(20);
+      else
+        delay(48);
+    }
+
+    float voltage = ((float)totalVoltage/(float)iteration) * (5.0 / 1023.0);
     float distance = 0;
 
-    if (IRSensor.IR_PIN == A5) // Front Left Infrared
+    if (IRSensor.IR_PIN == A5) // Front Left Infrared Short Range (Pretty good)
     {
-      distance = 11.26 * pow(voltage, 4) -104.53 * pow(voltage, 3) + 358.65 * pow(voltage, 2) -565.76 * voltage + 413.57;
+      distance =  81.487 * pow(voltage, 4) - 485.13 * pow(voltage, 3) + 1065.5 * pow(voltage, 2) - 1090 * voltage + 534.3;
     }
-    else if (IRSensor.IR_PIN == A7) // Back Left Infrared
+    else if (IRSensor.IR_PIN == A7) // Back Left Infrared long range (Pretty good)
     {
-      distance = 50.961 * pow(voltage, 4) -355.71 * pow(voltage, 3) + 972.91 * pow(voltage, 2) -1316.4 * voltage + 882.22;
+      distance = -22.701 * pow(voltage, 5) + 310.95 * pow(voltage, 4) - 1461.7 * pow(voltage, 3) + 3187.9 * pow(voltage, 2) - 3440.3 * voltage + 1693.1;
     }
-    else if (IRSensor.IR_PIN == A4) // Front Right Infrared
+    else if (IRSensor.IR_PIN == A9) // Front Right Infrared Long Range
     {
-      distance = 130.26 * pow(voltage, 4) -889.33 * pow(voltage, 3) + 2284.3 * pow(voltage, 2) -2732.8 * voltage + 478.65;
+      distance = -190.52 * pow(voltage, 5) + 1458.5 * pow(voltage, 4) - 4383.5 * pow(voltage, 3) + 6563 * pow(voltage, 2) - 5116.6 * voltage + 1932.8;
     }
-    else if (IRSensor.IR_PIN == A6) // Back Right Infrared
+    else if (IRSensor.IR_PIN == A11) // Back Right Infrared Short Range 
     {
-      distance = 33.515 * pow(voltage, 4) -236.7 * pow(voltage, 3) + 627.52 * pow(voltage, 2) -788.81 * voltage + 478.65;
+      distance = 61.795 * pow(voltage, 4) - 383.16 * pow(voltage, 3) + 881.92 * pow(voltage, 2) - 954.01 * voltage + 499.54;
     }
     else
     {
