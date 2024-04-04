@@ -465,6 +465,7 @@ STATE initialising() {
 
   enable_motors();
   GyroSetup();  //Set up starting voltage for gyro
+  setWallDirection();
 
   BluetoothSerial.println("RUNNING STATE...");
 
@@ -472,33 +473,66 @@ STATE initialising() {
 }
 
 STATE findCorner() {
-  float voltage;
 
-  // voltage = getIRDistance(IR_BL);
-  // BluetoothSerial.print("Back Left Voltage: ");
-  // BluetoothSerial.println(voltage);
-
-  // delay(2000);
-  fast_flash_double_LED_builtin();
-
-  voltage = getIRDistance(IR_BR);
-  BluetoothSerial.print("Back Right Voltage: ");
-  BluetoothSerial.println(voltage);
-
-  delay(2000);
-
-  // voltage = getIRDistance(IR_FL);
-  // BluetoothSerial.print("Front Left Voltage: ");
-  // BluetoothSerial.println(voltage);
+  // float distance = HC_SR04_range();
+  // BluetoothSerial.println(distance);
+  // BluetoothSerial.println();
 
   // delay(2000);
 
-  voltage = getIRDistance(IR_FR);
-  BluetoothSerial.print("Front Right Voltage: ");
-  BluetoothSerial.println(voltage);
+  float distance;
+
+  distance = getIRDistance(IR_FR);
+  BluetoothSerial.print("Front Right: ");
+  BluetoothSerial.println(distance);
 
   delay(2000);
-  BluetoothSerial.println();
+
+  distance = getIRDistance(IR_FL);
+  BluetoothSerial.print("Front Left: ");
+  BluetoothSerial.println(distance);
+
+  delay(2000);
+
+
+  return FINDCORNER;
+
+  // updateCoordinates();
+
+  // BluetoothSerial.println("Y-Coordinate (measured from IR):");
+
+  // BluetoothSerial.println(yCoordinate);
+
+  // delay(2000);
+
+  // float distance;
+
+  // distance = getIRDistance(IR_FL);
+  // BluetoothSerial.print("Front Left: ");
+  // BluetoothSerial.println(distance);
+
+  // delay(2000);
+
+  // distance = getIRDistance(IR_FR);
+  // BluetoothSerial.print("Front Right: ");
+  // BluetoothSerial.println(distance);
+
+  // delay(2000);
+
+  // distance = getIRDistance(IR_BL);
+  // BluetoothSerial.print("Back Left: ");
+  // BluetoothSerial.println(distance);
+
+  // delay(2000);
+
+  // distance = getIRDistance(IR_BR);
+  // BluetoothSerial.print("Back Right: ");
+  // BluetoothSerial.println(distance);
+
+  // delay(2000);
+
+  // BluetoothSerial.println();
+
 
   return FINDCORNER;
   // cw();
@@ -784,34 +818,33 @@ void updateIRDistance(int irSensor)
      * Hypothetically if alligned correctly, the 2 long range IR sensors should add to 1200mm once in the middle
      */
   
-    getCurrentAngle(); // update current angle (Z coordinate)
-    updateIRDistance(frontLeft);
-    updateIRDistance(backLeft);
-    updateIRDistance(frontRight);
-    updateIRDistance(backRight);
+    backLeftDistance = getIRDistance(IR_BL);
+    backRightDistance = getIRDistance(IR_BR);
+    frontRightDistance = getIRDistance(IR_FR);
+    frontLeftDistance = getIRDistance(IR_FL);
 
     // FOR LEFT SIDE CLOSE
-    if ((frontLeftDistance < 200) && (backLeftDistance < 200)){
+    if ((frontLeftDistance < 250) && (backLeftDistance < 250)){
      if (wallDirection == 0){ // left side closer to start
-       yCoordinate = (frontLeftDistance + backLeftDistance) / 2;
+       yCoordinate = (frontLeftDistance);
       }
      else { // left side closer to finish
-       yCoordinate = ((1200 - frontLeftDistance) + (1200 - backLeftDistance)) / 2;
+       yCoordinate = (1200 - frontLeftDistance);
      }    
     }
 
     // FOR RIGHT SIDE CLOSE
-    if ((frontRightDistance < 200) && (backRightDistance < 200)){
+    if ((frontRightDistance < 250) && (backRightDistance < 250)){
       if (wallDirection == 1){ // right side closer to start
-        yCoordinate = (frontRightDistance + backRightDistance) / 2;
+        yCoordinate = backRightDistance;
       }
       else { // right side closer to finish
-        yCoordinate = ((1200 - frontRightDistance) + (120 - backRightDistance)) / 2;
+        yCoordinate = (1200 - backRightDistance);
       }
     } 
 
     // FOR IN THE CENTRE 
-    if ((frontRightDistance > 200) && (backLeftDistance > 200)){
+    if ((frontRightDistance > 250) && (backLeftDistance > 250)){
       if (wallDirection == 0){ // adjust coordinates to be relative to TOP LEFT/BOTTOM RIGHT at start
         yCoordinate = ((backLeftDistance) + (1200 - frontRightDistance)) / 2;
       }
@@ -841,10 +874,10 @@ void updateIRDistance(int irSensor)
     // If left side starts closer to the wall, we are either in TOP LEFT or BOTTOM RIGHT
     // If right side starts closer to the wall, we are either in TOP RIGHT of BOTTOM LEFT
 
-    updateIRDistance(frontLeft);
-    updateIRDistance(backLeft);
-    updateIRDistance(frontRight);
-    updateIRDistance(backRight);
+    backLeftDistance = getIRDistance(IR_BL);
+    backRightDistance = getIRDistance(IR_BR);
+    frontRightDistance = getIRDistance(IR_FR);
+    frontLeftDistance = getIRDistance(IR_FL);
     
     // If left side closer to wall, set wallDirection to 0
     if ((frontLeftDistance + backLeftDistance) < (frontRightDistance + backRightDistance)){
@@ -861,14 +894,10 @@ void updateIRDistance(int irSensor)
     int iteration = 0;
     float totalVoltage = 0;
 
-    for (size_t i = 0; i < 5; i++)
+    for (size_t i = 0; i < 10; i++)
     {
       totalVoltage += analogRead(IRSensor.IR_PIN);
       iteration++;
-      if (IRSensor.mSensorType == SHORTRANGE) // Short range sensors
-        delay(20);
-      else
-        delay(48);
     }
 
     float voltage = ((float)totalVoltage/(float)iteration) * (5.0 / 1023.0);
@@ -882,11 +911,11 @@ void updateIRDistance(int irSensor)
     {
       distance = -22.701 * pow(voltage, 5) + 310.95 * pow(voltage, 4) - 1461.7 * pow(voltage, 3) + 3187.9 * pow(voltage, 2) - 3440.3 * voltage + 1693.1;
     }
-    else if (IRSensor.IR_PIN == A9) // Front Right Infrared Long Range
+    else if (IRSensor.IR_PIN == A9) // Front Right Infrared Long Range (Alright)
     {
       distance = -190.52 * pow(voltage, 5) + 1458.5 * pow(voltage, 4) - 4383.5 * pow(voltage, 3) + 6563 * pow(voltage, 2) - 5116.6 * voltage + 1932.8;
     }
-    else if (IRSensor.IR_PIN == A11) // Back Right Infrared Short Range 
+    else if (IRSensor.IR_PIN == A11) // Back Right Infrared Short Range (Alright)
     {
       distance = 61.795 * pow(voltage, 4) - 383.16 * pow(voltage, 3) + 881.92 * pow(voltage, 2) - 954.01 * voltage + 499.54;
     }
