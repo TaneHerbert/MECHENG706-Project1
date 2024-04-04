@@ -480,17 +480,25 @@ STATE findCorner() {
 
   // delay(2000);
 
-  float distance;
+  // float distance;
 
-  distance = getIRDistance(IR_FR);
-  BluetoothSerial.print("Front Right: ");
-  BluetoothSerial.println(distance);
+  // distance = getIRDistance(IR_FR);
+  // BluetoothSerial.print("Front Right: ");
+  // BluetoothSerial.println(distance);
 
-  delay(2000);
+  // delay(2000);
 
-  distance = getIRDistance(IR_FL);
-  BluetoothSerial.print("Front Left: ");
-  BluetoothSerial.println(distance);
+  // distance = getIRDistance(IR_FL);
+  // BluetoothSerial.print("Front Left: ");
+  // BluetoothSerial.println(distance);
+
+  // delay(2000);
+
+  updateCoordinates();
+
+  BluetoothSerial.println("Y-Coordinate (measured from IR):");
+
+  BluetoothSerial.println(yCoordinate);
 
   delay(2000);
 
@@ -823,15 +831,15 @@ void updateIRDistance(int irSensor)
     frontRightDistance = getIRDistance(IR_FR);
     frontLeftDistance = getIRDistance(IR_FL);
 
-    // FOR LEFT SIDE CLOSE
-    if ((frontLeftDistance < 250) && (backLeftDistance < 250)){
-     if (wallDirection == 0){ // left side closer to start
-       yCoordinate = (frontLeftDistance);
-      }
-     else { // left side closer to finish
-       yCoordinate = (1200 - frontLeftDistance);
-     }    
-    }
+    // // FOR LEFT SIDE CLOSE
+    // if ((frontLeftDistance < 250) && (backLeftDistance < 250)){
+    //  if (wallDirection == 0){ // left side closer to start
+    //    yCoordinate = (frontLeftDistance);
+    //   }
+    //  else { // left side closer to finish
+    //    yCoordinate = (1200 - frontLeftDistance);
+    //  }    
+    // }
 
     // FOR RIGHT SIDE CLOSE
     if ((frontRightDistance < 250) && (backRightDistance < 250)){
@@ -843,16 +851,15 @@ void updateIRDistance(int irSensor)
       }
     } 
 
-    // FOR IN THE CENTRE 
-    if ((frontRightDistance > 250) && (backLeftDistance > 250)){
-      if (wallDirection == 0){ // adjust coordinates to be relative to TOP LEFT/BOTTOM RIGHT at start
-        yCoordinate = ((backLeftDistance) + (1200 - frontRightDistance)) / 2;
-      }
-      else { // adjust coordinates to be relative to TOP RIGHT/BOTTOM LEFT at start
-        yCoordinate = ((1200 - backLeftDistance) + (frontRightDistance)) / 2;
-      }
-    }  
-
+    // // FOR IN THE CENTRE 
+    // if ((frontRightDistance > 250) && (backLeftDistance > 250)){
+    //   if (wallDirection == 0){ // adjust coordinates to be relative to TOP LEFT/BOTTOM RIGHT at start
+    //     yCoordinate = ((backLeftDistance) + (1200 - frontRightDistance)) / 2;
+    //   }
+    //   else { // adjust coordinates to be relative to TOP RIGHT/BOTTOM LEFT at start
+    //     yCoordinate = ((1200 - backLeftDistance) + (frontRightDistance)) / 2;
+    //   }
+    // }  
   }
 
 // ----------------------Control System------------------------
@@ -873,20 +880,22 @@ void updateIRDistance(int irSensor)
   {
     // If left side starts closer to the wall, we are either in TOP LEFT or BOTTOM RIGHT
     // If right side starts closer to the wall, we are either in TOP RIGHT of BOTTOM LEFT
-
     backLeftDistance = getIRDistance(IR_BL);
     backRightDistance = getIRDistance(IR_BR);
     frontRightDistance = getIRDistance(IR_FR);
     frontLeftDistance = getIRDistance(IR_FL);
     
     // If left side closer to wall, set wallDirection to 0
-    if ((frontLeftDistance + backLeftDistance) < (frontRightDistance + backRightDistance)){
+    if (frontLeftDistance < backRightDistance){
       wallDirection = 0;
     }
     // Else, right side is closer to wall therefore set wallDirection to 1
     else{
       wallDirection = 1;
     }
+
+    BluetoothSerial.print("Wall Direction: ");
+    BluetoothSerial.println(wallDirection);
   }
 
   float getIRDistance(IRSensor IRSensor)
