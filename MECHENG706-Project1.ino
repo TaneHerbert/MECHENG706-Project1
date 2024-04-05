@@ -588,10 +588,6 @@ STATE running() {
 
   //   BluetoothSerial.println("RUNNING---------");
   //   speed_change_smooth();
-
-    // #ifndef NO_BATTERY_V_OK
-    //   if (!is_battery_voltage_OK()) return STOPPED;
-    // #endif
   // }
 
   return RUNNING;
