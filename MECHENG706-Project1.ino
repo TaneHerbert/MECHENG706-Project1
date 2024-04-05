@@ -51,7 +51,8 @@ enum STATE {
   INITIALISING,
   FINDCORNER,
   RUNNING,
-  STOPPED
+  STOPPED,
+  STRAIGHT
 };
 
 enum IRSENSORTYPE
@@ -92,14 +93,14 @@ float yCoordinate;
 int wallDirection; // (0 = starts in TOP LEFT/BOTTOM RIGHT), (1 = starts in TOP RIGHT/BOTTOM LEFT)
 
 // Time of one loop, 0.1 s
-int T = 100;
+int T = 70;
 
 // Voltage when gyro is initialised
 float gyroZeroVoltage = 0;
 
 float gyroSupplyVoltage = 5;   // supply voltage for gyro
 float gyroSensitivity = 0.007; // gyro sensitivity unit is (mv/degree/second) get from datasheet
-float rotationThreshold = 1.5; // because of gyro drifting, defining rotation angular velocity less than this value will be ignored
+float rotationThreshold = 3; // because of gyro drifting, defining rotation angular velocity less than this value will be ignored
 
 // current angle calculated by angular velocity integral on
 float currentAngle = 0;
@@ -136,6 +137,8 @@ nonBlockingTimers mNonBlockingTimers =
 {
   .lastUpdateTimeGyro = 0,
 };
+
+float starting_angle;
 
 static STATE machine_state;
 
@@ -183,6 +186,56 @@ IRSensor IR_BR =
   .upperVoltage = 2.30
 };
 
+//PID Control System Global Vars
+//declare pid struct
+struct pidvars {
+  int pos;
+  float eprev;
+  float eintegral;
+  float kp;
+  float ki;
+  float kd;
+  long prevT;
+};
+
+//x coord PID variables
+pidvars xVar = {
+  .pos = 0,
+  .eprev = 0,
+  .eintegral = 0,
+  .kp = 3.38,
+  .ki = 0.154,
+  .kd = 1.02,
+  .prevT = 0
+};
+
+//y coord PID variables
+pidvars yVar = {
+  .pos = 0,
+  .eprev = 0,
+  .eintegral = 0,
+  .kp = 4, // 1.96
+  .ki = 0.205,
+  .kd = 1.04,
+  .prevT = 0
+};
+
+//angular PID variables
+pidvars aVar = {
+  .pos = 0,
+  .eprev = 0,
+  .eintegral = 0,
+  .kp = 7, // 2.72
+  .ki = 0.343,
+  .kd = 1.21,
+  .prevT = 0
+};
+
+//Initialise matrix for inverse kinematics:
+float invKMatrix[4][3] =  {{1,1,-0.165},{1,-1,0.165},{1,-1,-0.165},{1,1,0.165}};
+float velArray[3];
+float angVelArray[4];
+
 /**
  * Private Decleration 
  */
@@ -226,6 +279,7 @@ STATE initialising();
 STATE running();
 STATE stopped();
 STATE findCorner();
+STATE straight();
 
 // Battery Voltage
 boolean is_battery_voltage_OK();
@@ -234,6 +288,10 @@ boolean is_battery_voltage_OK();
 float getIRDistance(IRSensor* IRSensor);
 
 void printBool(IRSensor mIRSensor);
+
+void inverseKinematics (float Vx, float Vy, float Az);
+
+float pidControl(pidvars* pidName, float error);
 
 /**
  * Set up
@@ -268,6 +326,9 @@ void loop(void)  //main loop
     case FINDCORNER:
       machine_state = findCorner();
       break;
+    case STRAIGHT:
+      machine_state = straight();
+      break;
     case RUNNING:  //Lipo Battery Volage OK
       machine_state = running();
       break;
@@ -276,10 +337,10 @@ void loop(void)  //main loop
       break;
   };
 
-  // /**
-  //  * Methods that must run every loop 
-  //  */
-  // getCurrentAngle(); // This function must run every 100ms so is placed outside the FSM
+  /**
+   * Methods that must run every loop 
+   */
+  getCurrentAngle(); // This function must run every 100ms so is placed outside the FSM
 
   #ifndef NO_BATTERY_V_OK
   if (!is_battery_voltage_OK())
@@ -488,7 +549,7 @@ void fast_flash_double_LED_builtin()
 STATE initialising() {
   //initialising
   BluetoothSerial.println("INITIALISING....");
-
+  delay(20);
   // Inititlisations
 
   enable_motors();
@@ -496,8 +557,13 @@ STATE initialising() {
   setWallDirection();
 
   BluetoothSerial.println("RUNNING STATE...");
+  delay(20);
 
-  return FINDCORNER;
+  xVar.prevT = micros();
+  yVar.prevT = micros();
+  aVar.prevT = micros();
+
+  return STRAIGHT;
 }
 
 STATE findCorner() {
@@ -558,10 +624,6 @@ STATE findCorner() {
   BluetoothSerial.println("***************************************** ");delay(20);
   */
 
-// Voltage
-
-  //float distance;
-
   BluetoothSerial.println("Y-Coordinate (measured from IR):");
   delay(20);
   BluetoothSerial.println(yCoordinate);
@@ -573,6 +635,8 @@ STATE findCorner() {
   BluetoothSerial.println();
 
   delay(4000);
+
+  //float distance;
 
   // distance = getIRDistance(&IR_FL);
   // BluetoothSerial.print("Front Left: ");
@@ -682,6 +746,85 @@ STATE findCorner() {
   // BluetoothSerial.println("End");
 
   // return RUNNING;
+}
+
+STATE straight()
+{
+  // left_font_motor.writeMicroseconds(1500 + 187);
+  // right_font_motor.writeMicroseconds(1500 + 75);
+  // left_rear_motor.writeMicroseconds(1500 - 75);
+  // right_rear_motor.writeMicroseconds(1500 - 187);
+
+  float xDesiredPoisition = 900;
+  float yDesiredPosition = 120;
+
+  updateCoordinates();
+
+  float xError = xCoordinate - xDesiredPoisition;
+  float yError = yDesiredPosition - yCoordinate;
+  float angleError = 0 - currentAngle;
+
+  // BluetoothSerial.print("X-Error: ");
+  // delay(20);
+  // BluetoothSerial.println(xError);
+  // delay(20);
+  // BluetoothSerial.print("Y-Error: ");
+  // delay(20);
+  // BluetoothSerial.println(yError);
+  // delay(20);
+  // BluetoothSerial.print("Angle-error: ");
+  // delay(20);
+  // BluetoothSerial.println(angleError);
+  // delay(20);
+  // BluetoothSerial.println();
+
+  float xVelocity = pidControl(&xVar, xError);
+  float yVelocity = pidControl(&yVar, yError);
+  float aVelocity = pidControl(&aVar, angleError);
+
+  // BluetoothSerial.print("X-Velocity: ");
+  // delay(20);
+  // BluetoothSerial.println(xVelocity);
+  // delay(20);
+  // BluetoothSerial.print("Y-Velocity: ");
+  // delay(20);
+  // BluetoothSerial.println(yVelocity);
+  // delay(20);
+  // BluetoothSerial.print("Z-Velocity: ");
+  // delay(20);
+  // BluetoothSerial.println(aVelocity);
+  // delay(20);
+
+  inverseKinematics(xVelocity, yVelocity, aVelocity);
+
+  // BluetoothSerial.print("Motor 1: ");
+  // delay(20);
+  // BluetoothSerial.println(angVelArray[0]);
+  // delay(20);
+  // BluetoothSerial.print("Motor 2: ");
+  // delay(20);
+  // BluetoothSerial.println(angVelArray[1]);
+  // delay(20);
+  // BluetoothSerial.print("Motor 3: ");
+  // delay(20);
+  // BluetoothSerial.println(angVelArray[2]);
+  // delay(20);
+  // BluetoothSerial.print("Motor 4: ");
+  // delay(20);
+  // BluetoothSerial.println(angVelArray[3]);
+  // delay(20);
+
+
+  left_font_motor.writeMicroseconds(1500 + (angVelArray[0] / 1800.0));
+  right_font_motor.writeMicroseconds(1500 + (angVelArray[1] / 1800.0));
+  left_rear_motor.writeMicroseconds(1500 - (angVelArray[2] / 1800.0));
+  right_rear_motor.writeMicroseconds(1500 - (angVelArray[3] / 1800.0));
+
+  angVelArray[0] = 0.0;
+  angVelArray[1] = 0.0;
+  angVelArray[2] = 0.0;
+  angVelArray[3] = 0.0;
+  return STRAIGHT;
 }
 
 STATE running() {
@@ -1054,4 +1197,49 @@ void printBool(IRSensor mIRSensor)
   BluetoothSerial.println(mIRSensor.isInRange);
   delay(20);
   BluetoothSerial.println();
+}
+
+//Function for inverse kinematics. Input velocities, output angular velocity of each wheel.
+void inverseKinematics (float Vx, float Vy, float Az){
+  float radius = 0.03;
+
+  //Input values into the velocity matrix
+  velArray[0] = Vx;
+  velArray[1] = Vy;
+  velArray[2] = Az;
+
+  // Multiplying matrix a and b and storing in array mult.
+  for(int i = 0; i < 4; ++i){
+    for(int k = 0; k < 3; ++k){
+      angVelArray[i] += invKMatrix[i][k] * velArray[k];
+    }
+  }
+  angVelArray[0] = angVelArray[0] / radius;
+  angVelArray[1] = angVelArray[1] / radius;
+  angVelArray[2] = angVelArray[2] / radius;
+  angVelArray[3] = angVelArray[3] / radius;
+
+} 
+
+//Pid Logic, input error, and pidvars struct name. Returns velocity.
+float pidControl(pidvars* pidName, float error){
+
+  // time difference
+  long currT = micros();
+  // long et = currT - pidName->prevT;
+  float deltaT = ((float)(currT - pidName->prevT))/1.0e6;
+  pidName->prevT = currT;
+
+  //derivitive:
+  float dedt = (error - pidName->eprev)/(deltaT);
+  //integral:
+  pidName->eintegral = pidName->eintegral + error * deltaT;
+
+  //control signal:
+  float velocity = pidName->kp * error + pidName->ki * pidName->eintegral + pidName->kd * dedt;
+
+  // store previous error
+  pidName->eprev = error;
+
+  return velocity;
 }
