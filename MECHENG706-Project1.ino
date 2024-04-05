@@ -146,8 +146,8 @@ IRSensor IR_FL =
   .isTooFar = true,
   .isTooClose = true,
   .isInRange = true,
-  .lowerVoltage = 0.27, 
-  .upperVoltage = 2.26 
+  .lowerVoltage = 0.30, 
+  .upperVoltage = 2.20 
 };
 
 IRSensor IR_BL = 
@@ -157,8 +157,8 @@ IRSensor IR_BL =
   .isTooFar = true,
   .isTooClose = true,
   .isInRange = true,
-  .lowerVoltage = 0.36,
-  .upperVoltage = 2.38 
+  .lowerVoltage = 0.51,
+  .upperVoltage = 2.00 
 };
 
 IRSensor IR_FR = 
@@ -168,8 +168,8 @@ IRSensor IR_FR =
   .isTooFar = true,
   .isTooClose = true,
   .isInRange = true,
-  .lowerVoltage = 0.35,
-  .upperVoltage = 2.31
+  .lowerVoltage = 0.46,
+  .upperVoltage = 2.00
 };
 
 IRSensor IR_BR = 
@@ -179,8 +179,8 @@ IRSensor IR_BR =
   .isTooFar = true,
   .isTooClose = true,
   .isInRange = true,
-  .lowerVoltage = 0.25,
-  .upperVoltage = 2.34
+  .lowerVoltage = 0.31,
+  .upperVoltage = 2.30
 };
 
 /**
@@ -864,10 +864,10 @@ void updateCoordinates()
   else if ((IR_FL.isTooFar) && (IR_BL.isInRange) && (IR_FR.isInRange) && (IR_BR.isTooFar)){
     if (frontRightDistance <= 540){
       //use frontright sensor only
-      if (wallDirection == 0){ // left side closer to start
+      if (wallDirection == 1){ // right side closer to start
         yCoordinate = (frontRightDistance + 72.0);
       }
-      else { // right side closer to finish
+      else { // left side closer to finish
         yCoordinate = (1200.0 - frontRightDistance - 72.0);
       }
     }
@@ -875,10 +875,10 @@ void updateCoordinates()
     //If its closer to the left side
     else if (backLeftDistance <= 540){
       //use backleft sensor only
-      if (wallDirection == 1){ // right side closer to start
+      if (wallDirection == 0){ // left side closer to start
         yCoordinate = (backLeftDistance + 72.0);
       }
-      else { // left side closer to finish
+      else { // right side closer to finish
         yCoordinate = (1200.0 - backLeftDistance - 72.0);
       }
     }    
