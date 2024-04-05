@@ -69,6 +69,9 @@ struct IRSensor
 {
   const int IR_PIN;
   IRSENSORTYPE mSensorType;
+  bool isInRange;
+  float lowerVoltage;
+  float upperVoltage;
 };
 
 /**
@@ -87,7 +90,7 @@ float yCoordinate;
 int wallDirection; // (0 = starts in TOP LEFT/BOTTOM RIGHT), (1 = starts in TOP RIGHT/BOTTOM LEFT)
 
 // Time of one loop, 0.1 s
-int T = 70;
+int T = 100;
 
 // Voltage when gyro is initialised
 float gyroZeroVoltage = 0;
@@ -134,10 +137,41 @@ nonBlockingTimers mNonBlockingTimers =
 
 static STATE machine_state;
 
-static IRSensor IR_FL = { .IR_PIN = A5, .mSensorType = SHORTRANGE };
-static IRSensor IR_BL = { .IR_PIN = A7, .mSensorType = LONGRANGE  };
-static IRSensor IR_FR = { .IR_PIN = A9, .mSensorType = LONGRANGE  };
-static IRSensor IR_BR = { .IR_PIN = A11, .mSensorType = SHORTRANGE }; // Was A6
+static IRSensor IR_FL = 
+{ 
+  .IR_PIN = A5, 
+  .mSensorType = SHORTRANGE, 
+  .isInRange = true, 
+  .lowerVoltage = 0.25, 
+  .upperVoltage = 2.30 
+};
+
+static IRSensor IR_BL = 
+{ 
+  .IR_PIN = A7, 
+  .mSensorType = LONGRANGE,
+  .isInRange = true,
+  .lowerVoltage = 0.34,
+  .upperVoltage = 2.40 
+};
+
+static IRSensor IR_FR = 
+{ 
+  .IR_PIN = A9, 
+  .mSensorType = LONGRANGE,
+  .isInRange = true,
+  .lowerVoltage = 0.33,
+  .upperVoltage = 2.33
+};
+
+static IRSensor IR_BR = 
+{ 
+  .IR_PIN = A11, 
+  .mSensorType = SHORTRANGE,
+  .isInRange = true,
+  .lowerVoltage = 0.23,
+  .upperVoltage = 2.37
+};
 
 /**
  * Private Decleration 
@@ -491,7 +525,6 @@ STATE findCorner() {
 
   // BluetoothSerial.println();
 
-
   return FINDCORNER;
 
   /** HOMING STUFF BELOW (PLEASE LEAVE) **/
@@ -787,13 +820,11 @@ void setWallDirection()
   if (frontLeftDistance < backRightDistance){
     wallDirection = 0;
     BluetoothSerial.print("Starting point: Top Left or Bottom Right");
-    BluetoothSerial.print("TEST TEST");
   }
   // Else, right side is closer to wall therefore set wallDirection to 1
   else{
     wallDirection = 1;
     BluetoothSerial.print("Starting point: Top Right or Bottom Left");
-    BluetoothSerial.print("TEST TEST");
   }
 }
 
@@ -812,6 +843,12 @@ float getIRDistance(IRSensor IRSensor)
 
   float voltage = ((float)totalVoltage/(float)iteration) * (5.0 / 1023.0);
   float distance = 0;
+
+  if (voltage <= IRSensor.lowerVoltage || voltage >= IRSensor.upperVoltage)
+  {
+    IRSensor.isInRange = false;
+    return 0.0;
+  }
 
   if (IRSensor.IR_PIN == A5) // Front Left Infrared Short Range (Pretty good)
   {
