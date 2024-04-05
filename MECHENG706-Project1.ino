@@ -891,11 +891,13 @@ void updateIRDistance(int irSensor)
     if (frontLeftDistance < backRightDistance){
       wallDirection = 0;
       BluetoothSerial.print("Starting point: Top Left or Bottom Right");
+      BluetoothSerial.print("TEST TEST");
     }
     // Else, right side is closer to wall therefore set wallDirection to 1
     else{
       wallDirection = 1;
       BluetoothSerial.print("Starting point: Top Right or Bottom Left");
+      BluetoothSerial.print("TEST TEST");
     }
   }
 
