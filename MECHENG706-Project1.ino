@@ -62,7 +62,7 @@ enum IRSENSORTYPE
 
 struct nonBlockingTimers
 {
-  unsigned long lastUpdateTimeGyro;
+  unsigned long lastUpdateTime;
 };
 
 struct IRSensor
@@ -89,15 +89,15 @@ float xCoordinate;
 float yCoordinate;
 int wallDirection; // (0 = starts in TOP LEFT/BOTTOM RIGHT), (1 = starts in TOP RIGHT/BOTTOM LEFT)
 
-// Time of one loop, 0.1 s
-int T = 100;
+// Time of one loop, 0.07 s
+int T = 70;
 
 // Voltage when gyro is initialised
 float gyroZeroVoltage = 0;
 
 float gyroSupplyVoltage = 5;   // supply voltage for gyro
 float gyroSensitivity = 0.007; // gyro sensitivity unit is (mv/degree/second) get from datasheet
-float rotationThreshold = 1.5; // because of gyro drifting, defining rotation angular velocity less than this value will be ignored
+float rotationThreshold = 3; // because of gyro drifting, defining rotation angular velocity less than this value will be ignored
 
 // current angle calculated by angular velocity integral on
 float currentAngle = 0;
@@ -130,9 +130,14 @@ Servo right_font_motor;  // create servo object to control Vex Motor Controller 
 
 SoftwareSerial BluetoothSerial(BLUETOOTH_RX, BLUETOOTH_TX);
 
-nonBlockingTimers mNonBlockingTimers = 
+nonBlockingTimers mNonBlockingTimeGyro = 
 {
-  .lastUpdateTimeGyro = 0,
+  .lastUpdateTime = 0,
+};
+
+nonBlockingTimers mNonBlockingTimePrint = 
+{
+  .lastUpdateTime = 0,
 };
 
 static STATE machine_state;
@@ -264,10 +269,10 @@ void loop(void)  //main loop
       break;
   };
 
-  // /**
-  //  * Methods that must run every loop 
-  //  */
-  // getCurrentAngle(); // This function must run every 100ms so is placed outside the FSM
+  /**
+   * Methods that must run every loop 
+   */
+  getCurrentAngle(); // This function must run every 100ms so is placed outside the FSM
 
   #ifndef NO_BATTERY_V_OK
   if (!is_battery_voltage_OK())
@@ -485,17 +490,17 @@ STATE initialising() {
 
   BluetoothSerial.println("RUNNING STATE...");
 
-  return FINDCORNER;
+  return RUNNING;
 }
 
 STATE findCorner() {
-  updateCoordinates();
+  // updateCoordinates();
 
-  BluetoothSerial.println("Y-Coordinate (measured from IR):");
+  // BluetoothSerial.println("Y-Coordinate (measured from IR):");
 
-  BluetoothSerial.println(yCoordinate);
+  // BluetoothSerial.println(yCoordinate);
 
-  delay(2000);
+  // delay(2000);
 
   // float distance;
 
@@ -523,97 +528,123 @@ STATE findCorner() {
 
   // delay(2000);
 
-  BluetoothSerial.println();
+  // BluetoothSerial.println();
 
-  return FINDCORNER;
+  // return FINDCORNER;
 
   /** HOMING STUFF BELOW (PLEASE LEAVE) **/
 
-  // cw();
+  cw();
 
-  // // Continue to turn until its done 1 turn;
-  // if (abs(fullTurns) < 1)
-  // {
-  //   if (abs(abs(currentAngle) - abs(prevAngle)) >= 3) // Take a distance measurement for every 3 degrees turned
-  //   {
-  //     distances[indexForDistances] = HC_SR04_range();
-  //     angles[indexForDistances] = currentAngle;
+  // Continue to turn until its done 1 turn;
+  if (abs(fullTurns) < 1)
+  {
+    if (abs(abs(currentAngle) - abs(prevAngle)) >= 1.5) // Take a distance measurement for every 3 degrees turned
+    {
+      distances[indexForDistances] = HC_SR04_range();
+      angles[indexForDistances] = currentAngle;
 
-  //     prevAngle = currentAngle;
-  //     indexForDistances++;
-  //   }
-  //   return FINDCORNER;
-  // }
+      prevAngle = currentAngle;
+      indexForDistances++;
+    }
+    return FINDCORNER;
+  }
 
-  // stop();
+  stop();
 
-  // // Analyze the collected distances to find corners
-  // for (int i = 1; i < indexForDistances - 1; i++) // Start from 1 and end at 78 to avoid out of bound indexes
-  // {
-  //   if (distances[i] > MAX_SONARDIST_CM || distances[i] < MIN_SONARDIST_CM)
-  //     continue; // Skip invalid readings;
+  // Analyze the collected distances to find corners
+  for (int i = 1; i < indexForDistances - 1; i++) // Start from 1 and end at 78 to avoid out of bound indexes
+  {
+    if (distances[i] > MAX_SONARDIST_CM || distances[i] < MIN_SONARDIST_CM)
+      continue; // Skip invalid readings;
 
-  //   // Check for a significant change in distance indicating a corner
-  //   // Introduce a threshold (e.g., deltaThreshold) to define what constitutes a significant change
-  //   float deltaThreshold = 2; // Adjust based on your robot's environment and sensor
-  //   bool isCorner = ((distances[i] - distances[i + 1]) > deltaThreshold) && 
-  //                   ((distances[i] - distances[i - 1]) > deltaThreshold);
+    // Check for a significant change in distance indicating a corner
+    // Introduce a threshold (e.g., deltaThreshold) to define what constitutes a significant change
+    float deltaThreshold = 1; // Adjust based on your robot's environment and sensor
+    bool isCorner = ((distances[i] - distances[i + 1]) > deltaThreshold) && 
+                    ((distances[i] - distances[i - 1]) > deltaThreshold);
     
-  //   if (isCorner)
-  //   {
-  //     cornerDistances[cornerIndex] = distances[i - 1];
-  //     angleCorner[cornerIndex] = angles[i - 1];
-  //     cornerIndex++;
-  //     cornerDistances[cornerIndex] = distances[i];
-  //     angleCorner[cornerIndex] = angles[i];
-  //     cornerIndex++;
-  //     cornerDistances[cornerIndex] = distances[i + 1];
-  //     angleCorner[cornerIndex] = angles[i + 1];
-  //     cornerIndex++;
+    if (isCorner)
+    {
+      cornerDistances[cornerIndex] = distances[i - 1];
+      angleCorner[cornerIndex] = angles[i - 1];
+      cornerIndex++;
+      cornerDistances[cornerIndex] = distances[i];
+      angleCorner[cornerIndex] = angles[i];
+      cornerIndex++;
+      cornerDistances[cornerIndex] = distances[i + 1];
+      angleCorner[cornerIndex] = angles[i + 1];
+      cornerIndex++;
 
-  //     if (cornerIndex >= 24) 
-  //       break;
-  //   }
-  // }
+      // if (cornerIndex >= 24) 
+      //   break;
+    }
+  }
 
-  // // Output the detected corners
-  // BluetoothSerial.println("Corners/Angles");
-  // BluetoothSerial.println("");
+  // Output the detected corners
+  BluetoothSerial.println("Corners/Angles");
+  delay(20);
+  BluetoothSerial.println("");
+  delay(20);
+  for (int i = 0; i < cornerIndex; i++)
+  {
+    BluetoothSerial.print("Before Corner Distance: ");
+    delay(20);
+    BluetoothSerial.println(cornerDistances[i]);
+    delay(20);
+    BluetoothSerial.print("Before Corner Angle: ");
+    delay(20);
+    BluetoothSerial.println(angleCorner[i]);
+    delay(20);
+    i++;
+    BluetoothSerial.print("Middle Distance: ");
+    delay(20);
+    BluetoothSerial.println(cornerDistances[i]);
+    delay(20);
+    BluetoothSerial.print("Middle Angle: ");
+    delay(20);
+    BluetoothSerial.println(angleCorner[i]);
+    delay(20);
+    i++;
+    BluetoothSerial.print("After Distance: ");
+    delay(20);
+    BluetoothSerial.println(cornerDistances[i]);
+    delay(20);
+    BluetoothSerial.print("After Angle: ");
+    delay(20);
+    BluetoothSerial.println(angleCorner[i]);
+    delay(20);
+    BluetoothSerial.println("");
+    delay(20);  
+  }
 
-  // for (int i = 0; i < cornerIndex; i++)
-  // {
-  //   BluetoothSerial.print("Before Corner Distance: ");
-  //   BluetoothSerial.println(cornerDistances[i]);
-  //   BluetoothSerial.print("Before Corner Angle: ");
-  //   BluetoothSerial.println(angleCorner[i]);
-  //   i++;
-  //   BluetoothSerial.print("Middle Distance: ");
-  //   BluetoothSerial.println(cornerDistances[i]);
-  //   BluetoothSerial.print("Middle Angle: ");
-  //   BluetoothSerial.println(angleCorner[i]);
-  //   i++;
-  //   BluetoothSerial.print("After Distance: ");
-  //   BluetoothSerial.println(cornerDistances[i]);
-  //   BluetoothSerial.print("After Angle: ");
-  //   BluetoothSerial.println(angleCorner[i]);
-  //   BluetoothSerial.println("");
-  // }
+  BluetoothSerial.print("Amount of Corners Indicated: ");
+  delay(20);
+  BluetoothSerial.println((cornerIndex + 1) /3);
+  delay(20);
+  BluetoothSerial.print("Distances/Angles Measured:");
+  delay(20);
+  BluetoothSerial.println(indexForDistances);
+  delay(20);
+  BluetoothSerial.println("End");
+  delay(20);
 
-  // BluetoothSerial.print("Amount of Corners Indicated: ");
-  // BluetoothSerial.println((cornerIndex + 1) /3);
-  // BluetoothSerial.print("Distances/Angles Measured:");
-  // BluetoothSerial.println(indexForDistances);
-  // BluetoothSerial.println("End");
+  delay(5000); // Enough time to get a photo
 
-  // return RUNNING;
+  return RUNNING;
 }
 
 STATE running() {
   // static unsigned long previous_millis;
 
   // fast_flash_double_LED_builtin();
+
+  if (!nonBlockingDelay(&mNonBlockingTimePrint.lastUpdateTime, 20))
+  {
+    return RUNNING;
+  }
+
   BluetoothSerial.println(currentAngle);
-  // delay(500);
 
   // //Arduino style 500ms timed execution statement
   // if (millis() - previous_millis > 500) {
@@ -705,7 +736,7 @@ void GyroSetup()
 // TODO: ALWAYS THINKS T = 100 when in fact could be slightly above or below. Need to get actual difference from non blocking delay
 void getCurrentAngle() 
 {
-  if (!nonBlockingDelay(&mNonBlockingTimers.lastUpdateTimeGyro, T))
+  if (!nonBlockingDelay(&mNonBlockingTimeGyro.lastUpdateTime, T))
   {
     return;
   }
@@ -720,26 +751,27 @@ void getCurrentAngle()
   if (abs(angularVelocity) >= rotationThreshold) {
     // we are running a loop in T (of T/1000 second).
     float angleChange = angularVelocity / (1000 / T);
-    currentAngle += angleChange;
 
     // Accumulate the angle change
     cumulativeAngleChange += angleChange;
-  }
 
-  // keep the angle between 0-360
-  if (currentAngle < 0) {
-    currentAngle += 360;
-  } else if (currentAngle > 359) {
-    currentAngle -= 360;
-  }
+    currentAngle += angleChange;
 
-  // Check for full turns
-  if (cumulativeAngleChange >= 360) {
-    fullTurns++;
-    cumulativeAngleChange -= 360; // Reset the cumulative change after counting a turn
-  } else if (cumulativeAngleChange <= -360) {
-    fullTurns--;
-    cumulativeAngleChange += 360; // Reset the cumulative change after counting a turn
+    // keep the angle between 0-360
+    if (currentAngle < (float)0.0) {
+      currentAngle += 360;
+    } else if (currentAngle > 359) {
+      currentAngle -= 360;
+    }
+
+    // Check for full turns
+    if (cumulativeAngleChange >= (float)360.0) {
+      fullTurns++;
+      cumulativeAngleChange -= (float)360.0; // Reset the cumulative change after counting a turn
+    } else if (cumulativeAngleChange <= (float)-360.0) {
+      fullTurns--;
+      cumulativeAngleChange += (float)360.0; // Reset the cumulative change after counting a turn
+    }
   }
 }
 
