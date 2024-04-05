@@ -69,6 +69,8 @@ struct IRSensor
 {
   const int IR_PIN;
   IRSENSORTYPE mSensorType;
+  bool isTooFar;
+  bool isTooClose;
   bool isInRange;
   float lowerVoltage;
   float upperVoltage;
@@ -141,36 +143,44 @@ static IRSensor IR_FL =
 { 
   .IR_PIN = A5, 
   .mSensorType = SHORTRANGE, 
-  .isInRange = true, 
-  .lowerVoltage = 0.25, 
-  .upperVoltage = 2.30 
+  .isTooFar = true,
+  .isTooClose = true,
+  .isInRange = true,
+  .lowerVoltage = 0.27, 
+  .upperVoltage = 2.26 
 };
 
 static IRSensor IR_BL = 
 { 
   .IR_PIN = A7, 
   .mSensorType = LONGRANGE,
+  .isTooFar = true,
+  .isTooClose = true,
   .isInRange = true,
-  .lowerVoltage = 0.34,
-  .upperVoltage = 2.40 
+  .lowerVoltage = 0.36,
+  .upperVoltage = 2.38 
 };
 
 static IRSensor IR_FR = 
 { 
   .IR_PIN = A9, 
   .mSensorType = LONGRANGE,
+  .isTooFar = true,
+  .isTooClose = true,
   .isInRange = true,
-  .lowerVoltage = 0.33,
-  .upperVoltage = 2.33
+  .lowerVoltage = 0.35,
+  .upperVoltage = 2.31
 };
 
 static IRSensor IR_BR = 
 { 
   .IR_PIN = A11, 
   .mSensorType = SHORTRANGE,
+  .isTooFar = true,
+  .isTooClose = true,
   .isInRange = true,
-  .lowerVoltage = 0.23,
-  .upperVoltage = 2.37
+  .lowerVoltage = 0.25,
+  .upperVoltage = 2.34
 };
 
 /**
@@ -489,41 +499,91 @@ STATE initialising() {
 }
 
 STATE findCorner() {
+
   updateCoordinates();
 
-  BluetoothSerial.println("Y-Coordinate (measured from IR):");
+  BluetoothSerial.print("Front Left is too close: ");
+  delay(20);
+  BluetoothSerial.println(IR_FL.isTooClose);
+  delay(20);
+  BluetoothSerial.print("Front Left is too far: ");
+  delay(20);
+  BluetoothSerial.println(IR_FL.isTooFar);
+  delay(20);
+  BluetoothSerial.print("Front Left is in range: ");
+  delay(20);
+  BluetoothSerial.println(IR_FL.isInRange);
+  delay(20);
 
-  BluetoothSerial.println(yCoordinate);
+  //BluetoothSerial.println("Y-Coordinate (measured from IR):");
+
+  //BluetoothSerial.println(yCoordinate);
+
+  BluetoothSerial.println("***************************************** ");
+  delay(20);
+
+  BluetoothSerial.print("Front Right is too close: ");
+  delay(20);
+  BluetoothSerial.println(IR_FR.isTooClose);
+  delay(20);
+  BluetoothSerial.print("Front Right is too far: ");
+  delay(20);
+  BluetoothSerial.println(IR_FR.isTooFar);
+  delay(20);
+  BluetoothSerial.print("Front Right is in range: ");
+  delay(20);
+  BluetoothSerial.println(IR_FR.isInRange);delay(20);
+
+  BluetoothSerial.println("***************************************** ");delay(20);
+
+  BluetoothSerial.print("Back left is too close: ");delay(20);
+  BluetoothSerial.println(IR_BL.isTooClose);delay(20);
+  BluetoothSerial.print("Back left is too far: ");delay(20);
+  BluetoothSerial.println(IR_BL.isTooFar);delay(20);
+  BluetoothSerial.print("Back left is in range: ");delay(20);
+  BluetoothSerial.println(IR_BL.isInRange);delay(20);
+
+  BluetoothSerial.println("***************************************** ");delay(20);
+
+  BluetoothSerial.print("Back Right is too close: ");delay(20);
+  BluetoothSerial.println(IR_BR.isTooClose);delay(20);
+  BluetoothSerial.print("Back Right is too far: ");delay(20);
+  BluetoothSerial.println(IR_BR.isTooFar);delay(20);
+  BluetoothSerial.print("Back Right is in range: ");delay(20);
+  BluetoothSerial.println(IR_BR.isInRange);delay(20);
+
+  BluetoothSerial.println("***************************************** ");delay(20);
+
+// Voltage
+
+  float distance;
+
+  distance = getIRDistance(IR_FL);
+  BluetoothSerial.print("Front Left: ");
+  BluetoothSerial.println(distance);
 
   delay(2000);
 
-  // float distance;
+  distance = getIRDistance(IR_FR);
+  BluetoothSerial.print("Front Right: ");
+  BluetoothSerial.println(distance);
 
-  // distance = getIRDistance(IR_FL);
-  // BluetoothSerial.print("Front Left: ");
-  // BluetoothSerial.println(distance);
+  delay(2000);
 
-  // delay(2000);
+  distance = getIRDistance(IR_BL);
+  BluetoothSerial.print("Back Left: ");
+  BluetoothSerial.println(distance);
 
-  // distance = getIRDistance(IR_FR);
-  // BluetoothSerial.print("Front Right: ");
-  // BluetoothSerial.println(distance);
+  delay(2000);
 
-  // delay(2000);
+  distance = getIRDistance(IR_BR);
+  BluetoothSerial.print("Back Right: ");
+  BluetoothSerial.println(distance);
 
-  // distance = getIRDistance(IR_BL);
-  // BluetoothSerial.print("Back Left: ");
-  // BluetoothSerial.println(distance);
+  delay(2000);
 
-  // delay(2000);
-
-  // distance = getIRDistance(IR_BR);
-  // BluetoothSerial.print("Back Right: ");
-  // BluetoothSerial.println(distance);
-
-  // delay(2000);
-
-  BluetoothSerial.println();
+  delay(10000);delay(20);
+  BluetoothSerial.println();delay(20);
 
   return FINDCORNER;
 
@@ -762,37 +822,88 @@ void updateCoordinates()
   frontRightDistance = getIRDistance(IR_FR);
   frontLeftDistance = getIRDistance(IR_FL);
 
-  // FOR LEFT SIDE CLOSE
-  if ((frontLeftDistance < 250) && (backLeftDistance < 250)){
+  // FOR LEFT SIDE TOO CLOSE LESS THAN 40mm
+  if ((IR_FL.isTooClose == true) && (IR_BL.isTooClose == true) && (IR_FR.isTooFar == true) && (IR_BR.isTooFar == true)){
     if (wallDirection == 0){ // left side closer to start
-      yCoordinate = (frontLeftDistance);
+      yCoordinate = 72.0;
     }
     else { // left side closer to finish
-      yCoordinate = (1200 - frontLeftDistance);
-    }    
+      yCoordinate = (1200.0 - 72.0);
+  }
+  }
+  //FOR LEFT SIDE  VERY CLOSE, LESS THAN 100mm
+  else if ((IR_FL.isInRange) && (IR_BL.isTooClose) && (IR_FR.isTooFar) && (IR_BR.isTooFar)){
+    if (wallDirection == 0){ // left side closer to start
+      yCoordinate = (frontLeftDistance + 72.0);
+    }
+    else { // left side closer to finish
+      yCoordinate = (1200.0 - 72.0 - frontLeftDistance);
+  }
   }
 
-  // FOR RIGHT SIDE CLOSE
-  if ((frontRightDistance < 250) && (backRightDistance < 250)){
+  //FOR LEFT SIDE MEDIUM CLOSE, MORE THAN 100mm, LESS THAN 290mm
+  else if ((IR_FL.isInRange) && (IR_BL.isInRange) && (IR_FR.isTooFar) && (IR_BR.isTooFar)){
+    //CAN ADD FUNCTIONALITY TO AVERAGE BOTH SENSORS HERE IF NEED BE.
+    if (wallDirection == 0){ // left side closer to start
+      yCoordinate = (frontLeftDistance + 72.0);
+    }
+    else { // left side closer to finish
+      yCoordinate = (1200.0 - 72.0 - frontLeftDistance);
+  }
+  }
+  
+  //FOR IN MIDDLE, MORE THAN 290mm on both sides
+  else if ((IR_FL.isTooFar) && (IR_BL.isInRange) && (IR_FR.isInRange) && (IR_BR.isTooFar)){
+    if (wallDirection == 0){ // left side closer to start
+      yCoordinate = ((backLeftDistance + 72.0) + (1200.0 - frontRightDistance - 72.0)) / 2.0;
+    }
+    else { // left side closer to finish
+      yCoordinate = ((1200.0 - backLeftDistance - 72.0) + (frontRightDistance + 72.0)) / 2.0;
+  }
+  }
+
+  //FOR RIGHT SIDE MEDIUM CLOSE, MORE THAN 100mm, LESS THAN 290mm
+  else if ((IR_FR.isInRange) && (IR_BR.isInRange) && (IR_FL.isTooFar) && (IR_BL.isTooFar)){
+    //CAN ADD FUNCTIONALITY TO AVERAGE BOTH SENSORS HERE IF NEED BE.
     if (wallDirection == 1){ // right side closer to start
-      yCoordinate = backRightDistance;
+      yCoordinate = (backRightDistance + 72.0);
     }
     else { // right side closer to finish
-      yCoordinate = (1200 - backRightDistance);
+      yCoordinate = (1200.0 - 72.0 - backRightDistance);
+  }
+  }
+
+  //FOR RIGHT SIDE VERY CLOSE, LESS THAN 100mm
+  else if ((IR_FR.isTooClose) && (IR_BR.isInRange) && (IR_FL.isTooFar) && (IR_BL.isTooFar)){
+    //CAN ADD FUNCTIONALITY TO AVERAGE BOTH SENSORS HERE IF NEED BE.
+    if (wallDirection == 1){ // right side closer to start
+      yCoordinate = (backRightDistance + 72.0);
     }
+    else { // right side closer to finish
+      yCoordinate = (1200.0 - 72.0 - backRightDistance);
+  }
+  }
+
+  //FOR RIGHT SIDE TOO CLOSE, LESS THAN 40mm
+  else if ((IR_FR.isTooClose) && (IR_BR.isTooClose) && (IR_FL.isTooFar) && (IR_BL.isTooFar)){
+    //CAN ADD FUNCTIONALITY TO AVERAGE BOTH SENSORS HERE IF NEED BE.
+    if (wallDirection == 1){ // right side closer to start
+      yCoordinate = 72.0;
+    }
+    else { // right side closer to finish
+      yCoordinate = 1200.0 - 72.0;
+  }
   } 
 
-  // FOR IN THE CENTRE 
-  if ((frontRightDistance > 250) && (backLeftDistance > 250)){
-    if (wallDirection == 0){ // adjust coordinates to be relative to TOP LEFT/BOTTOM RIGHT at start
-      yCoordinate = ((backLeftDistance) + (1200 - frontRightDistance)) / 2;
-    }
-    else { // adjust coordinates to be relative to TOP RIGHT/BOTTOM LEFT at start
-      yCoordinate = ((1200 - backLeftDistance) + (frontRightDistance)) / 2;
-    }
-  }  
-}
+  //FOR WHEN NO CASES WORKING
+  else{
+    //print to let them know
+    BluetoothSerial.println("Error, no cases fit");
+    //dont update y coordinate.
+  }
 
+
+}
 // ----------------------Control System------------------------
 
 // Implements PID control using X,Y,Z coordinate system
@@ -815,7 +926,7 @@ void setWallDirection()
   frontLeftDistance = getIRDistance(IR_FL);
   
   // If left side closer to wall, set wallDirection to 0
-  if (frontLeftDistance < backRightDistance){
+  if ((IR_BL.isTooFar == false) || (IR_FL.isTooFar == false)){
     wallDirection = 0;
     BluetoothSerial.println("Starting point: Top Left or Bottom Right");
   }
@@ -842,10 +953,21 @@ float getIRDistance(IRSensor IRSensor)
   float voltage = ((float)totalVoltage/(float)iteration) * (5.0 / 1023.0);
   float distance = 0;
 
-  if (voltage <= IRSensor.lowerVoltage || voltage >= IRSensor.upperVoltage)
+  if (voltage <= IRSensor.lowerVoltage)
   {
+    IRSensor.isTooFar = true;
     IRSensor.isInRange = false;
-    return 0.0;
+  }
+
+  else if (voltage >= IRSensor.upperVoltage)
+  {
+    IRSensor.isTooClose = true;
+    IRSensor.isInRange = false;
+  }
+  else {
+    IRSensor.isInRange = true;
+    IRSensor.isTooClose = false;
+    IRSensor.isTooFar = false;
   }
 
   if (IRSensor.IR_PIN == A5) // Front Left Infrared Short Range (Pretty good)
@@ -869,5 +991,5 @@ float getIRDistance(IRSensor IRSensor)
     return 0.0;
   }
 
-  return distance;
+  return voltage; // Remember its distance should return
 }
