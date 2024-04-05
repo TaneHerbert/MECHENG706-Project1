@@ -811,9 +811,7 @@ void setWallDirection()
 {
   // If left side starts closer to the wall, we are either in TOP LEFT or BOTTOM RIGHT
   // If right side starts closer to the wall, we are either in TOP RIGHT of BOTTOM LEFT
-  backLeftDistance = getIRDistance(IR_BL);
   backRightDistance = getIRDistance(IR_BR);
-  frontRightDistance = getIRDistance(IR_FR);
   frontLeftDistance = getIRDistance(IR_FL);
   
   // If left side closer to wall, set wallDirection to 0
