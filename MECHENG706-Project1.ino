@@ -8,10 +8,6 @@
  *  Jackson Taylor
 */
 
-//test change
-
-// Make Change
-
 #include <SoftwareSerial.h>
 #include <Servo.h>
 
@@ -32,16 +28,6 @@
 
 #define BLUETOOTH_RX 10 // Serial Data input pin
 #define BLUETOOTH_TX 11 // Serial Data output pin
-
-#define frontLeft 97 // SHORT RANGE IR (Number relates to specefic sensor)
-#define backLeft 69  // LONG RANGE IR (Number relates to specefic sensor)
-#define frontRight 8 // LONG RANGE IR (Number relates to specefic sensor)
-#define backRight 66 // SHORT RANGE IR (Number relates to specefic sensor)
-
-const int IR_PIN_FL = A5; // Front Left Infrared
-const int IR_PIN_BL = A7; // Back Left Infrared
-const int IR_PIN_FR = A4; // Front Right Infrared
-const int IR_PIN_BR = A6; // Back Right Infrared
 
 // Default ultrasonic ranging sensor pins
 const int TRIG_PIN = 42;
@@ -99,11 +85,6 @@ float backRightDistance;
 float xCoordinate;
 float yCoordinate;
 int wallDirection; // (0 = starts in TOP LEFT/BOTTOM RIGHT), (1 = starts in TOP RIGHT/BOTTOM LEFT)
-
-float fLV;
-float fRV;
-float bLV;
-float bRV;
 
 // Time of one loop, 0.1 s
 int T = 70;
@@ -188,9 +169,6 @@ void fast_flash_double_LED_builtin();
 // Gyro
 void GyroSetup();
 void getCurrentAngle();
-
-// Infrared Sensor
-void updateIRDistance(int irSensor);
 
 // Coordinate System
 void updateCoordinates();
@@ -477,38 +455,6 @@ STATE initialising() {
 }
 
 STATE findCorner() {
-
-  // float distance = HC_SR04_range();
-  // BluetoothSerial.println(distance);
-  // BluetoothSerial.println();
-
-  // delay(2000);
-
-  // float distance;
-
-  // distance = getIRDistance(IR_FR);
-  // BluetoothSerial.print("Front Right: ");
-  // BluetoothSerial.println(distance);
-
-  // delay(2000);
-
-  // distance = getIRDistance(IR_FL);
-  // BluetoothSerial.print("Front Left: ");
-  // BluetoothSerial.println(distance);
-
-  // delay(2000);
-
-  updateCoordinates();
-
-  BluetoothSerial.println("Y-Coordinate (measured from IR):");
-
-  BluetoothSerial.println(yCoordinate);
-
-  delay(2000);
-
-
-  return FINDCORNER;
-
   // updateCoordinates();
 
   // BluetoothSerial.println("Y-Coordinate (measured from IR):");
@@ -547,6 +493,9 @@ STATE findCorner() {
 
 
   return FINDCORNER;
+
+  /** HOMING STUFF BELOW (PLEASE LEAVE) **/
+
   // cw();
 
   // // Continue to turn until its done 1 turn;
@@ -765,178 +714,129 @@ void getCurrentAngle()
   }
 }
 
-// ----------------------Infrared Sensor------------------------
+// ----------------------Coordinate System------------------------
 
-void updateIRDistance(int irSensor)
+// Update the X, Y, Z coordinates relative to starting point being (~15, ~15, 0°). Starting point once in corner.
+void updateCoordinates()
 {
-  //update voltage/distance reading for front left IR sensor  
-  if (irSensor == frontLeft){
-    fLV = analogRead(IR_PIN_FL) * (5.0 / 1023.0);
-    // If voltage within accurate range, set to calculated distance
-    if (fLV < 2.75){
-      frontLeftDistance = 11.26 * pow(fLV, 4) -104.53 * pow(fLV, 3) + 358.65 * pow(fLV, 2) -565.76 * fLV + 413.57;
-    } 
-  // Else set to minimum accurate reading    
-    else {
-      frontLeftDistance = 40;
+  /* General rules of thumb and key information:
+    * If AND ONLY if the robot is correctly alligned to be in parallel with the wall, 
+    * sonar reading will control X reading and IR sensors will control Y readings
+    * If the robot is not correctly alligned with the wall, we will get inaccurate coordinates based on this code
+    * The board is 2500mm long and 1200mm 
+    * If the robot is 400mm away from the wall in the Y direction, rely on both long ranges to give reading
+    * Hypothetically if alligned correctly, the 2 long range IR sensors should add to 1200mm once in the middle
+    */
+
+  backLeftDistance = getIRDistance(IR_BL);
+  backRightDistance = getIRDistance(IR_BR);
+  frontRightDistance = getIRDistance(IR_FR);
+  frontLeftDistance = getIRDistance(IR_FL);
+
+  // FOR LEFT SIDE CLOSE
+  if ((frontLeftDistance < 250) && (backLeftDistance < 250)){
+    if (wallDirection == 0){ // left side closer to start
+      yCoordinate = (frontLeftDistance);
     }
+    else { // left side closer to finish
+      yCoordinate = (1200 - frontLeftDistance);
+    }    
   }
 
-  //update voltage/distance reading for back left IR sensor  
-  if (irSensor == backLeft){
-    bLV = analogRead(IR_PIN_BL) * (5.0 / 1023.0);
-    if (bLV < 2.25){
-      backLeftDistance = 50.961 * pow(bLV, 4) -355.71 * pow(bLV, 3) + 972.91 * pow(bLV, 2) -1316.4 * bLV + 882.22;
-    } 
-    else {
-      backLeftDistance = 100;
+  // FOR RIGHT SIDE CLOSE
+  if ((frontRightDistance < 250) && (backRightDistance < 250)){
+    if (wallDirection == 1){ // right side closer to start
+      yCoordinate = backRightDistance;
     }
-  }
+    else { // right side closer to finish
+      yCoordinate = (1200 - backRightDistance);
+    }
+  } 
 
-  //update voltage/distance reading for back right IR sensor  
-  if (irSensor == backRight){
-    bRV = analogRead(IR_PIN_BR) * (5.0 / 1023.0);
-    if (bRV < 2.57){
-      backRightDistance = 33.515 * pow(bRV, 4) -236.7 * pow(bRV, 3) + 627.52 * pow(bRV, 2) -788.81 * bRV + 478.65;
-    } 
-    else {
-      backRightDistance = 40;
+  // FOR IN THE CENTRE 
+  if ((frontRightDistance > 250) && (backLeftDistance > 250)){
+    if (wallDirection == 0){ // adjust coordinates to be relative to TOP LEFT/BOTTOM RIGHT at start
+      yCoordinate = ((backLeftDistance) + (1200 - frontRightDistance)) / 2;
     }
-  }
-
-  //update voltage/distance reading for back right IR sensor  
-  if (irSensor == frontRight){
-    fRV = analogRead(IR_PIN_FR) * (5.0 / 1023.0);
-    if (bRV < 2.38){
-      frontRightDistance = 130.26 * pow(fRV, 4) -889.33 * pow(fRV, 3) + 2284.3 * pow(fRV, 2) -2732.8 * fRV + 478.65;
-    } 
-    else {
-      frontRightDistance = 100;
+    else { // adjust coordinates to be relative to TOP RIGHT/BOTTOM LEFT at start
+      yCoordinate = ((1200 - backLeftDistance) + (frontRightDistance)) / 2;
     }
-  }
+  }  
 }
-
-  // ----------------------Coordinate System------------------------
-
-  // Update the X, Y, Z coordinates relative to starting point being (~15, ~15, 0°). Starting point once in corner.
-  void updateCoordinates()
-  {
-    /* General rules of thumb and key information:
-     * If AND ONLY if the robot is correctly alligned to be in parallel with the wall, 
-     * sonar reading will control X reading and IR sensors will control Y readings
-     * If the robot is not correctly alligned with the wall, we will get inaccurate coordinates based on this code
-     * The board is 2500mm long and 1200mm 
-     * If the robot is 400mm away from the wall in the Y direction, rely on both long ranges to give reading
-     * Hypothetically if alligned correctly, the 2 long range IR sensors should add to 1200mm once in the middle
-     */
-  
-    backLeftDistance = getIRDistance(IR_BL);
-    backRightDistance = getIRDistance(IR_BR);
-    frontRightDistance = getIRDistance(IR_FR);
-    frontLeftDistance = getIRDistance(IR_FL);
-
-    // // FOR LEFT SIDE CLOSE
-    // if ((frontLeftDistance < 250) && (backLeftDistance < 250)){
-    //  if (wallDirection == 0){ // left side closer to start
-    //    yCoordinate = (frontLeftDistance);
-    //   }
-    //  else { // left side closer to finish
-    //    yCoordinate = (1200 - frontLeftDistance);
-    //  }    
-    // }
-
-    // FOR RIGHT SIDE CLOSE
-    if ((frontRightDistance < 250) && (backRightDistance < 250)){
-      if (wallDirection == 1){ // right side closer to start
-        yCoordinate = backRightDistance;
-      }
-      else { // right side closer to finish
-        yCoordinate = (1200 - backRightDistance);
-      }
-    } 
-
-    // // FOR IN THE CENTRE 
-    // if ((frontRightDistance > 250) && (backLeftDistance > 250)){
-    //   if (wallDirection == 0){ // adjust coordinates to be relative to TOP LEFT/BOTTOM RIGHT at start
-    //     yCoordinate = ((backLeftDistance) + (1200 - frontRightDistance)) / 2;
-    //   }
-    //   else { // adjust coordinates to be relative to TOP RIGHT/BOTTOM LEFT at start
-    //     yCoordinate = ((1200 - backLeftDistance) + (frontRightDistance)) / 2;
-    //   }
-    // }  
-  }
 
 // ----------------------Control System------------------------
 
-  // Implements PID control using X,Y,Z coordinate system
-  void Move()
-  {
-    /* TWO STATES: Driving close to the wall, Driving away from the wall.
-    
-    For Driving close to the wall (<200mm): we will rely on the IR sensors on the side close to wall.
-    For Driving away from the wall (>200mm): we will rely on the long range IR sensors either side
-    */
+// Implements PID control using X,Y,Z coordinate system
+void Move()
+{
+  /* TWO STATES: Driving close to the wall, Driving away from the wall.
+  
+  For Driving close to the wall (<200mm): we will rely on the IR sensors on the side close to wall.
+  For Driving away from the wall (>200mm): we will rely on the long range IR sensors either side
+  */
 
+}
+
+// Call this function once at the beginning after robot is alligned to define what side starts closer to the wall
+void setWallDirection()
+{
+  // If left side starts closer to the wall, we are either in TOP LEFT or BOTTOM RIGHT
+  // If right side starts closer to the wall, we are either in TOP RIGHT of BOTTOM LEFT
+  backLeftDistance = getIRDistance(IR_BL);
+  backRightDistance = getIRDistance(IR_BR);
+  frontRightDistance = getIRDistance(IR_FR);
+  frontLeftDistance = getIRDistance(IR_FL);
+  
+  // If left side closer to wall, set wallDirection to 0
+  if (frontLeftDistance < backRightDistance){
+    wallDirection = 0;
+    BluetoothSerial.print("Starting point: Top Left or Bottom Right");
+    BluetoothSerial.print("TEST TEST");
+  }
+  // Else, right side is closer to wall therefore set wallDirection to 1
+  else{
+    wallDirection = 1;
+    BluetoothSerial.print("Starting point: Top Right or Bottom Left");
+    BluetoothSerial.print("TEST TEST");
+  }
+}
+
+// ----------------------Infrared Sensor------------------------
+
+float getIRDistance(IRSensor IRSensor)
+{
+  int iteration = 0;
+  float totalVoltage = 0;
+
+  for (size_t i = 0; i < 10; i++)
+  {
+    totalVoltage += analogRead(IRSensor.IR_PIN);
+    iteration++;
   }
 
-  // Call this function once at the beginning after robot is alligned to define what side starts closer to the wall
-  void setWallDirection()
+  float voltage = ((float)totalVoltage/(float)iteration) * (5.0 / 1023.0);
+  float distance = 0;
+
+  if (IRSensor.IR_PIN == A5) // Front Left Infrared Short Range (Pretty good)
   {
-    // If left side starts closer to the wall, we are either in TOP LEFT or BOTTOM RIGHT
-    // If right side starts closer to the wall, we are either in TOP RIGHT of BOTTOM LEFT
-    backLeftDistance = getIRDistance(IR_BL);
-    backRightDistance = getIRDistance(IR_BR);
-    frontRightDistance = getIRDistance(IR_FR);
-    frontLeftDistance = getIRDistance(IR_FL);
-    
-    // If left side closer to wall, set wallDirection to 0
-    if (frontLeftDistance < backRightDistance){
-      wallDirection = 0;
-      BluetoothSerial.print("Starting point: Top Left or Bottom Right");
-      BluetoothSerial.print("TEST TEST");
-    }
-    // Else, right side is closer to wall therefore set wallDirection to 1
-    else{
-      wallDirection = 1;
-      BluetoothSerial.print("Starting point: Top Right or Bottom Left");
-      BluetoothSerial.print("TEST TEST");
-    }
+    distance =  81.487 * pow(voltage, 4) - 485.13 * pow(voltage, 3) + 1065.5 * pow(voltage, 2) - 1090 * voltage + 534.3;
+  }
+  else if (IRSensor.IR_PIN == A7) // Back Left Infrared long range (Pretty good)
+  {
+    distance = -22.701 * pow(voltage, 5) + 310.95 * pow(voltage, 4) - 1461.7 * pow(voltage, 3) + 3187.9 * pow(voltage, 2) - 3440.3 * voltage + 1693.1;
+  }
+  else if (IRSensor.IR_PIN == A9) // Front Right Infrared Long Range (Alright)
+  {
+    distance = -190.52 * pow(voltage, 5) + 1458.5 * pow(voltage, 4) - 4383.5 * pow(voltage, 3) + 6563 * pow(voltage, 2) - 5116.6 * voltage + 1932.8;
+  }
+  else if (IRSensor.IR_PIN == A11) // Back Right Infrared Short Range (Alright)
+  {
+    distance = 61.795 * pow(voltage, 4) - 383.16 * pow(voltage, 3) + 881.92 * pow(voltage, 2) - 954.01 * voltage + 499.54;
+  }
+  else
+  {
+    return 0.0;
   }
 
-  float getIRDistance(IRSensor IRSensor)
-  {
-    int iteration = 0;
-    float totalVoltage = 0;
-
-    for (size_t i = 0; i < 10; i++)
-    {
-      totalVoltage += analogRead(IRSensor.IR_PIN);
-      iteration++;
-    }
-
-    float voltage = ((float)totalVoltage/(float)iteration) * (5.0 / 1023.0);
-    float distance = 0;
-
-    if (IRSensor.IR_PIN == A5) // Front Left Infrared Short Range (Pretty good)
-    {
-      distance =  81.487 * pow(voltage, 4) - 485.13 * pow(voltage, 3) + 1065.5 * pow(voltage, 2) - 1090 * voltage + 534.3;
-    }
-    else if (IRSensor.IR_PIN == A7) // Back Left Infrared long range (Pretty good)
-    {
-      distance = -22.701 * pow(voltage, 5) + 310.95 * pow(voltage, 4) - 1461.7 * pow(voltage, 3) + 3187.9 * pow(voltage, 2) - 3440.3 * voltage + 1693.1;
-    }
-    else if (IRSensor.IR_PIN == A9) // Front Right Infrared Long Range (Alright)
-    {
-      distance = -190.52 * pow(voltage, 5) + 1458.5 * pow(voltage, 4) - 4383.5 * pow(voltage, 3) + 6563 * pow(voltage, 2) - 5116.6 * voltage + 1932.8;
-    }
-    else if (IRSensor.IR_PIN == A11) // Back Right Infrared Short Range (Alright)
-    {
-      distance = 61.795 * pow(voltage, 4) - 383.16 * pow(voltage, 3) + 881.92 * pow(voltage, 2) - 954.01 * voltage + 499.54;
-    }
-    else
-    {
-      return 0.0;
-    }
-
-    return distance;
-  }
+  return distance;
+}
