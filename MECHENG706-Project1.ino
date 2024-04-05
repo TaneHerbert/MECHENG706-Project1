@@ -1111,12 +1111,8 @@ void inverseKinematics (float Vx, float Vy, float Az){
     for(int k = 0; k < 3; ++k){
       angVelArray[i] += invKMatrix[i][k] * velArray[k];
     }
+    angVelArray[i] / radius;
   }
-  angVelArray[0] = angVelArray[0] / radius;
-  angVelArray[1] = angVelArray[1] / radius;
-  angVelArray[2] = angVelArray[2] / radius;
-  angVelArray[3] = angVelArray[3] / radius;
-
 } 
 
 //Pid Logic, input error, and pidvars struct name. Returns velocity.
