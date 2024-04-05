@@ -489,13 +489,13 @@ STATE initialising() {
 }
 
 STATE findCorner() {
-  // updateCoordinates();
+  updateCoordinates();
 
-  // BluetoothSerial.println("Y-Coordinate (measured from IR):");
+  BluetoothSerial.println("Y-Coordinate (measured from IR):");
 
-  // BluetoothSerial.println(yCoordinate);
+  BluetoothSerial.println(yCoordinate);
 
-  // delay(2000);
+  delay(2000);
 
   // float distance;
 
@@ -523,7 +523,7 @@ STATE findCorner() {
 
   // delay(2000);
 
-  // BluetoothSerial.println();
+  BluetoothSerial.println();
 
   return FINDCORNER;
 
@@ -817,12 +817,12 @@ void setWallDirection()
   // If left side closer to wall, set wallDirection to 0
   if (frontLeftDistance < backRightDistance){
     wallDirection = 0;
-    BluetoothSerial.print("Starting point: Top Left or Bottom Right");
+    BluetoothSerial.println("Starting point: Top Left or Bottom Right");
   }
   // Else, right side is closer to wall therefore set wallDirection to 1
   else{
     wallDirection = 1;
-    BluetoothSerial.print("Starting point: Top Right or Bottom Left");
+    BluetoothSerial.println("Starting point: Top Right or Bottom Left");
   }
 }
 
