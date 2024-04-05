@@ -563,10 +563,16 @@ STATE findCorner() {
   //float distance;
 
   BluetoothSerial.println("Y-Coordinate (measured from IR):");
-
+  delay(20);
   BluetoothSerial.println(yCoordinate);
+  delay(20);
+  BluetoothSerial.println("X-Coordinate (measured from SONAR):");
+  delay(20);
+  BluetoothSerial.println(xCoordinate);
+  delay(20);
+  BluetoothSerial.println();
 
-  delay(2000);
+  delay(4000);
 
   // distance = getIRDistance(&IR_FL);
   // BluetoothSerial.print("Front Left: ");
@@ -938,7 +944,7 @@ void updateCoordinates()
     //dont update y coordinate.
   }
 
-
+  xCoordinate = (10 * HC_SR04_range()) + 122;
 }
 // ----------------------Control System------------------------
 
