@@ -873,4 +873,3 @@ float getIRDistance(IRSensor IRSensor)
 
   return distance;
 }
-// Test 123
