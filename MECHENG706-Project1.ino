@@ -196,9 +196,9 @@ pidvars xVar =
 {
   .eprev = 0,
   .eintegral = 0,
-  .kp = 4,
-  .ki = 0,
-  .kd = 0,
+  .kp = 3.38,
+  .ki = 0.154,
+  .kd = 1.02,
   .prevT = 0
 };
 
@@ -207,9 +207,9 @@ pidvars yVar =
 {
   .eprev = 0,
   .eintegral = 0,
-  .kp = 4,
-  .ki = 0,
-  .kd = 0,
+  .kp = 1.96,
+  .ki = 0.205,
+  .kd = 1.04,
   .prevT = 0
 };
 
@@ -218,9 +218,9 @@ pidvars aVar =
 {
   .eprev = 0,
   .eintegral = 0,
-  .kp = 4, // 2.72
-  .ki = 0,
-  .kd = 0,
+  .kp = 2.72,
+  .ki = 0.343,
+  .kd = 1.21,
   .prevT = 0
 };
 
