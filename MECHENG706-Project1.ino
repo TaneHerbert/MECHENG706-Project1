@@ -750,7 +750,7 @@ STATE straight()
 
   float xError = xDesiredPoisition - xCoordinate;
   float yError = yDesiredPosition - yCoordinate;
-  float angleError = 0.0 - currentAngle;
+  float angleError = 0.0 -  currentAngle;
 
   // delay(20);
   // BluetoothSerial.println(xError);
@@ -802,10 +802,20 @@ STATE straight()
   // delay(20);
   // delay(2000);
 
-  left_font_motor.writeMicroseconds(1500 + angVelArray[0]);
-  right_font_motor.writeMicroseconds(1500 - angVelArray[1]);
-  left_rear_motor.writeMicroseconds(1500 + angVelArray[2]);
-  right_rear_motor.writeMicroseconds(1500 - angVelArray[3]);
+  if (wallDirection == 0)
+  {
+    left_font_motor.writeMicroseconds(1500 + angVelArray[0]);
+    right_font_motor.writeMicroseconds(1500 - angVelArray[1]);
+    left_rear_motor.writeMicroseconds(1500 + angVelArray[2]);
+    right_rear_motor.writeMicroseconds(1500 - angVelArray[3]);
+  }
+  else // I think opposite
+  {
+    left_font_motor.writeMicroseconds(1500 - angVelArray[0]);
+    right_font_motor.writeMicroseconds(1500 + angVelArray[1]);
+    left_rear_motor.writeMicroseconds(1500 - angVelArray[2]);
+    right_rear_motor.writeMicroseconds(1500 + angVelArray[3]);
+  }
 
   angVelArray[0] = 0.0;
   angVelArray[1] = 0.0;
@@ -1126,6 +1136,8 @@ float pidControl(pidvars* pidName, float error){
   //control signal:
   float velocity = pidName->kp * error + pidName->ki * pidName->eintegral + pidName->kd * dedt;
 
+  // Saturation ??
+
   // store previous error
   pidName->eprev = error;
 
@@ -1166,7 +1178,6 @@ float getIRDistance(IRSensor* mIRSensor)
     mIRSensor->isTooClose = false;
     mIRSensor->isTooFar = false;
   }
-  
 
   if (mIRSensor->IR_PIN == A5) // Front Left Infrared Short Range (Pretty good)
   {
