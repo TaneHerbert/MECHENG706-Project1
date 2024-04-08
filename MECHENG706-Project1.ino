@@ -1271,39 +1271,49 @@ STATE drive(){
 
 
 if (tanesFunction){ // Will output true if the robot has reached the current desired position
-  pathStep++;
+  segmentStep++;
+  xDesired = xPoint[segmentStep];
+  yDesired = yPoint[segmentStep];
 
-  // There will be 2 coordinate paths that the robot will take depending on direction it STARTTED (robotDirection)
-  if (robotDirection){ // started facing away from wall (use pathArray1)
 
+  // NOT 100% on if this should be >= or >
+  if (segmentStep >= segmentArray[pathStep]){ // The robot has reached the end of the step and needs to move to the next point path point
+    segmentStep = 0; // reset segment step
+    pathStep++;
+
+    // There will be 2 coordinate paths that the robot will take depending on direction it STARTTED (robotDirection)
+    if (robotDirection){ // started facing away from wall (use pathArray1)
+      drivePoints((pathArray1[pathStep-1][1]),(pathArray1[pathStep-1][2]),(pathArray1[pathStep][1]),(pathArray1[pathStep][2]),(segmentArray[pathStep]));
+    }
+    else { // started facing wall (use pathArray0)
+      drivePoints((pathArray0[pathStep-1][1]),(pathArray0[pathStep-1][2]),(pathArray0[pathStep][1]),(pathArray0[pathStep][2]),(segmentArray[pathStep]));
+    }
+    xDesired = xPoint[0];
+    yDesired = yPoint[0];
   }
-  else { // started facing wall (use pathArray0)
-
-  }
-
+  
 
 }
 
-
-
-
-// UPDATE DESIRED POSITION
-  drivePoints
 }
-
 
 int pathStep = 0;
+int segmentStep = 0;
 
-pathArray0[20][2] = {{150,150},{1850,150},{1850,250},{150,250},{150,350},{1850,150},
-{},
-{}
-,}
+float pathArray0[21][2] = {{150,150},{1850,150},{1850,250},{150,250},{1850,250},{1850,350},{150,350},{150,450},{1850,450}
+{1850,550},{150,550},{150,650},{1850,650},{1850,750},{150,750},{150,850},{1850,850},{1850,950},{150,950},{150,1050},{1850,1050}};
 
-pathArray1[20][2] =  
+float pathArray1[20][2]; 
 
+float segmentArray[21] = {1,10,5,10,5,10,5,10,5,10,5,10,5,10,5,10,5,10,5,10,99999} // tells us how many segments we should break each path step into
+
+
+float xDesired;
+float yDesired;
 
 float xPoint[10]; // X points to travel along the line, adjust the size as needed
 float yPoint[10]; // Y points to travel along the line, adjust the size as needed
+
 
 void drivePoints(float xCoordinate, float yCoordinate, float xDesired, float yDesired, int n) {
     // Calculate the step increments for each axis
