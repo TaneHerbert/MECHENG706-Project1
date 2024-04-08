@@ -114,7 +114,7 @@ float yCoordinate;
 int wallDirection; // (0 = starts in TOP LEFT/BOTTOM RIGHT), (1 = starts in TOP RIGHT/BOTTOM LEFT)
 
 // Time of one loop, 0.07 s (GYRO)
-int T = 70;
+int T = 100;
 
 // Voltage when gyro is initialised
 float gyroZeroVoltage = 0;
@@ -240,15 +240,15 @@ pidvars xVar =
   .mPIDCONTROL = XCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .integralLimit = 200,
-  .kp = 0.75,
-  .ki = 0.0, // 0.154
-  .kd = 0.0,  // 1.02
+  .integralLimit = 500,
+  .kp = 1.0,
+  .ki = 0.2, // 0.154
+  .kd = 0.02,  // 1.02
   .prevT = 0,
   .breakOutTime = 20,
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 70,
+  .minError = 30,
 };
 
 //y coord PID variables
@@ -257,15 +257,15 @@ pidvars yVar =
   .mPIDCONTROL = YCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .integralLimit = 200,
-  .kp = 25,
-  .ki = 0.0, // 0.205
+  .integralLimit = 800,
+  .kp = 4.5,
+  .ki = 1.5, // 0.205
   .kd = 0.0,  // 1.04
   .prevT = 0,
   .breakOutTime = 20,
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 20,
+  .minError = 30,
 };
 
 //angular PID variables
@@ -274,15 +274,15 @@ pidvars aVar =
   .mPIDCONTROL = ACONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .integralLimit = 50, // ????
-  .kp = 20,
-  .ki = 0.0, // 0.343
-  .kd = 0.0, // 1.21
+  .integralLimit = 400, // ????
+  .kp = 0.32,
+  .ki = 0.2, // 0.343
+  .kd = 0.012, // 1.21
   .prevT = 0, 
   .breakOutTime = 20,
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 2,
+  .minError = 1,
 };
 
 //Initialise matrix for inverse kinematics:
@@ -297,17 +297,11 @@ float invKMatrix[4][3] =
 float velArray[3];
 float angVelArray[4];
 
-// TEST
 int pathStep = 0;
 int segmentStep = 0;
-void drivePoints(float xCoordinate, float yCoordinate, float xDesired, float yDesired, int n);
 
-//float xCoordinateDes[20] = {150, 1750, 1750, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150};
-//float yCoordinateDes[20] = {150, 150, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1050, 1050};
-float xCoordinateDes[20] = {150, 1750, 1750, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150};
+float xCoordinateDes[20] = {150, 1750, 1750, 150, 150, 1750, 1750, 150, 150, 1750, 1750, 150, 150, 1750, 1750, 150, 150, 1750, 1750, 150};
 float yCoordinateDes[20] = {150, 150, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1050, 1050};
-
-
 
 float segmentArray[21] = {1,10,5,10,5,10,5,10,5,10,5,10,5,10,5,10,5,10,5,10,99999}; // tells us how many segments we should break each path step into
 
@@ -316,7 +310,6 @@ float yDesired = 150;
 
 float xPoint[100]; // X points to travel along the line, adjust the size as needed
 float yPoint[100]; // Y points to travel along the line, adjust the size as needed
-// TEST
 
 /**
  * Private Decleration 
@@ -339,6 +332,7 @@ float HC_SR04_range();
 // Delay
 void delaySeconds(int TimedDelaySeconds);
 bool nonBlockingDelay(unsigned long *lastMillis, unsigned long delayMicros);
+bool breakOutTimerPID(unsigned long *lastMillis, unsigned long delayMicros);
 
 // Builtin LED FLashing
 void slow_flash_LED_builtin();
@@ -372,7 +366,7 @@ void inverseKinematics (float Vx, float Vy, float Az);
 float pidControl(pidvars* pidName, float error);
 
 bool driveToPosition(float xDesiredPoisition, float yDesiredPosition);
-void drivePoints(float xCoordinate, float yCoordinate, float xDesired, float yDesired);
+void drivePoints(float xCoordinate, float yCoordinate, float xDesired, float yDesired, int n);
 
 /**
  * Set up
@@ -580,14 +574,26 @@ void delaySeconds(int TimedDelaySeconds)
   }
 }
 
+bool breakOutTimerPID(unsigned long *lastMillis, unsigned long delayMillis)
+{
+  unsigned long currentMillis = millis();
+
+  // Check if the current time minus the last recorded time is greater than the delay
+  if (currentMillis - *lastMillis >= delayMillis) 
+  {
+    return true;  // Return true if the delay has elapsed
+  }
+  return false;  // Return false if the delay has not elapsed
+}
+
 bool nonBlockingDelay(unsigned long *lastMillis, unsigned long delayMicros) {
   unsigned long currentMicros = millis();
 
   // Check if the current time minus the last recorded time is greater than the delay
   if (currentMicros - *lastMillis >= delayMicros) {
-      // Update the last recorded time
-      *lastMillis = currentMicros;
-      return true;  // Return true if the delay has elapsed
+    // Update the last recorded time
+    *lastMillis = currentMicros;
+    return true;  // Return true if the delay has elapsed
   }
   return false;  // Return false if the delay has not elapsed
 }
@@ -678,17 +684,6 @@ STATE driveToCorner(){
 
 STATE drivepathway()
 {
-  // drivePoints(xCoordinateDes[xCoordinateDesIndex], yCoordinateDes[yCoordinateDesIndex], xCoordinateDes[xCoordinateDesIndex + 1], yCoordinateDes[yCoordinateDesIndex + 1]);
-
-  // bool arrivedAtPosition = driveToPosition(xCoordinateDes[xCoordinateDesIndex + 1], yCoordinateDes[yCoordinateDesIndex + 1]);
-
-  // if (arrivedAtPosition == true)
-  // {
-  //   xCoordinateDesIndex++;
-  //   yCoordinateDesIndex++;
-  //   BluetoothSerial.println("TRUE");
-  // }
-
   if (driveToPosition(xDesired, yDesired)){ // Will output true if the robot has reached the current desired position
     segmentStep++;
     xDesired = xPoint[segmentStep];
@@ -825,12 +820,12 @@ void GyroSetup()
 // TODO: ALWAYS THINKS T = 100 when in fact could be slightly above or below. Need to get actual difference from non blocking delay
 void getCurrentAngle() 
 {
+  unsigned long time = millis() - mNonBlockingTimerGyro.lastUpdateTime;
+
   if (!nonBlockingDelay(&mNonBlockingTimerGyro.lastUpdateTime, T))
   {
     return;
   }
-
-  unsigned long time = millis() - mNonBlockingTimerGyro.lastUpdateTime;
 
   // convert the 0-1023 signal to 0-5v
   float gyroRate = (analogRead(gyroSensorPin) * gyroSupplyVoltage) / 1023;
@@ -1032,10 +1027,10 @@ void inverseKinematics (float Vx, float Vy, float Az)
     angVelArray[i] / radius;
 
     // Saturation for motors
-    if (angVelArray[i] > 100) {
-      angVelArray[i] = 100;
-    } else if (angVelArray[i] < -100) {
-      angVelArray[i] = -100;
+    if (angVelArray[i] > 300) {
+      angVelArray[i] = 300;
+    } else if (angVelArray[i] < -300) {
+      angVelArray[i] = -300;
     }
   }
 } 
@@ -1073,7 +1068,7 @@ float pidControl(pidvars* pidName, float error){
   // store previous error
   pidName->eprev = error;
 
-  if (error < abs(pidName->minError) )
+  if (abs(error) < abs(pidName->minError) )
   {
     pidName->withinError = true;
   }
@@ -1170,7 +1165,7 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
     aVar.prevT = millis();
   }
 
-  if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 50)) // Run straight every 50 ms
+  if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 20)) // Run straight every 50 ms
   {
     return false;
   }
@@ -1274,46 +1269,40 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
   {
     int check = 0;
 
-    // if (nonBlockingDelay(&xVar.breakOutTime, xVar.breakOutTime))
-    // {
-    //   check++;
-    //   BluetoothSerial.println("CHECKED 1");
-    // }
+    if (breakOutTimerPID(&xVar.breakOutTime, xVar.breakOutTime))
+    {
+      check++;
+    }
+    
+    if (breakOutTimerPID(&yVar.breakOutTime, yVar.breakOutTime))
+    {
+      check++;
+    }
+    
+    if (breakOutTimerPID(&aVar.breakOutTime, aVar.breakOutTime))
+    {
+      check++;
+    }
 
-    // if (nonBlockingDelay(&yVar.breakOutTime, yVar.breakOutTime))
-    // {
-    //   check++;
-    //   BluetoothSerial.println("CHECKED 2");
-    // }
-
-    // if (nonBlockingDelay(&aVar.breakOutTime, aVar.breakOutTime))
-    // {
-    //   check++;
-    // }
-
-    // if (check == 2)
-    // {
-    //   return true;
-    // }
-    xVar.withinError = false;
-    yVar.withinError = false;
-    aVar.withinError = false;
-    return true;
+    if (check == 3)
+    {
+      return true;
+    }
   }
 
   return false;
 }
 
-void drivePoints(float xCoordinate, float yCoordinate, float xDesired, float yDesired, int n) {
-    // Calculate the step increments for each axis
-    float xStep = (xDesired - xCoordinate) / n;
-    float yStep = (yDesired - yCoordinate) / n;
+void drivePoints(float xCoordinate, float yCoordinate, float xDesired, float yDesired, int n) 
+{
+  // Calculate the step increments for each axis
+  float xStep = (xDesired - xCoordinate) / n;
+  float yStep = (yDesired - yCoordinate) / n;
 
-    // Populate the arrays with the points
-    // Start from 1 to skip the current position and end at n to include the desired position
-    for (int z = 1; z <= n; z++) {
-        xPoint[z - 1] = xCoordinate + xStep * z;
-        yPoint[z - 1] = yCoordinate + yStep * z;
-    }
-        
+  // Populate the arrays with the points
+  // Start from 1 to skip the current position and end at n to include the desired position
+  for (int z = 1; z <= n; z++) {
+    xPoint[z - 1] = xCoordinate + xStep * z;
+    yPoint[z - 1] = yCoordinate + yStep * z;
+  } 
 }
