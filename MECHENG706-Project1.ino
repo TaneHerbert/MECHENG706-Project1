@@ -50,7 +50,8 @@ const byte right_front = 49;
 enum STATE 
 {
   INITIALISING,
-  FINDCORNER,
+  ORIENTATEROBOT,
+  DRIVETOCORNER,
   STRAIGHT,
   RUNNING,
   STOPPED
@@ -127,14 +128,21 @@ float currentAngle = 0;
 float prevAngle = 0;
 int fullTurns = 0;  // Counter for full turns. Positive for clockwise, negative for counterclockwise
 
-float distances[200] = { 0 };
-float angles[200] = { 0 };
+float distances[200] = { 0 }; //reduntant now CAN DELETE
+float currentDist = 0;
+float prevDist = 0;
+float prevprevDist = 0;
+
+float angles[200] = { 0 }; //reduntant now CAN DELETE
 
 float angleCorner[200] = { 0 };
 float cornerDistances[200] = { 0 };
 
 int cornerIndex = 0;
-int indexForDistances = 0;;
+int indexForDistances = 0;
+
+//Boolean for homing function to check the orientation of robot
+bool validOrientation = false;
 
 // This variable will track the cumulative change in angle.
 float cumulativeAngleChange = 0;
@@ -207,6 +215,28 @@ IRSensor IR_BR =
   .isInRange = true,
   .lowerVoltage = 0.31,
   .upperVoltage = 2.30
+};
+
+IRSensor IR_BL_UNLIMITED = 
+{ 
+  .IR_PIN = A7, 
+  .mSensorType = LONGRANGE,
+  .isTooFar = true,
+  .isTooClose = true,
+  .isInRange = true,
+  .lowerVoltage = 0.37,
+  .upperVoltage = 2.00 
+};
+
+IRSensor IR_FR_UNLIMITED = 
+{ 
+  .IR_PIN = A9, 
+  .mSensorType = LONGRANGE,
+  .isTooFar = true,
+  .isTooClose = true,
+  .isInRange = true,
+  .lowerVoltage = 0.35,
+  .upperVoltage = 2.00
 };
 
 //x coord PID variables
@@ -311,7 +341,8 @@ void setWallDirection();
 STATE initialising();
 STATE running();
 STATE stopped();
-STATE findCorner();
+STATE orientateRobot();
+STATE driveToCorner();
 STATE straight();
 
 // Battery Voltage
@@ -321,7 +352,7 @@ boolean is_battery_voltage_OK();
 float getIRDistance(IRSensor* IRSensor);
 void printBool(IRSensor mIRSensor);
 
-// Control Sysytem
+// Control System
 void inverseKinematics (float Vx, float Vy, float Az);
 float pidControl(pidvars* pidName, float error);
 
@@ -354,13 +385,16 @@ void loop(void)  //main loop
     case INITIALISING:
       machine_state = initialising();
       break;
-    case FINDCORNER:
-      machine_state = findCorner();
+    case ORIENTATEROBOT:
+      machine_state = orientateRobot();
+      break;
+    case DRIVETOCORNER:
+      machine_state = driveToCorner();
       break;
     case STRAIGHT:
       machine_state = straight();
       break;
-    case RUNNING:  //Lipo Battery Volage OK
+    case RUNNING:  //Lipo Battery Voltage OK
       machine_state = running();
       break;
     case STOPPED:  //Stop of Lipo Battery voltage is too low, to protect Battery
@@ -592,189 +626,49 @@ STATE initialising() {
 
   currentAngle = 0;
 
-  return STRAIGHT;
+  return ORIENTATEROBOT;
 }
 
-STATE findCorner() {
+STATE orientateRobot() {
 
-  updateCoordinates();
+  /*NEW HOMING CODE*/
 
-/*
-  BluetoothSerial.print("Front Left is too close: ");
-  delay(20);
-  BluetoothSerial.println(IR_FL.isTooClose);
-  delay(20);
-  BluetoothSerial.print("Front Left is too far: ");
-  delay(20);
-  BluetoothSerial.println(IR_FL.isTooFar);
-  delay(20);
-  BluetoothSerial.print("Front Left is in range: ");
-  delay(20);
-  BluetoothSerial.println(IR_FL.isInRange);
-  delay(20);
+  cw();
 
-  //BluetoothSerial.println("Y-Coordinate (measured from IR):");
+  //Turn until it reaches a mininum where both long range sensors are in range
+  if (!validOrientation){
+    if (abs(abs(currentAngle) - abs(prevAngle)) >= 9) // Check orientation every 9 degrees turned
+    {
+      currentDist = HC_SR04_range(); //measure current sonar distance
+      getIRDistance(&IR_BL_UNLIMITED); //measure distances for long range sensors on either side
+      getIRDistance(&IR_FR_UNLIMITED);
 
-  //BluetoothSerial.println(yCoordinate);
+      //Check if you are at a minimum point
+      if ((prevDist < prevprevDist) && (prevDist < currentDist)){
+        //Check if you are at a horizontal orientation, and not vertical (By checking if both long range sensors arent too far)
+        if ((!IR_BL_UNLIMITED.isTooFar) && (!IR_FR_UNLIMITED.isTooFar)){
+          validOrientation = true;
+          return ORIENTATEROBOT;
+        } 
+      }
+      prevprevDist = prevDist;
+      prevDist = currentDist;
+      prevAngle = currentAngle;
+    }
+    return ORIENTATEROBOT;
+  }
+  stop();
 
-  BluetoothSerial.println("***************************************** ");
-  delay(20);
+  return DRIVETOCORNER;
 
-  BluetoothSerial.print("Front Right is too close: ");
-  delay(20);
-  BluetoothSerial.println(IR_FR.isTooClose);
-  delay(20);
-  BluetoothSerial.print("Front Right is too far: ");
-  delay(20);
-  BluetoothSerial.println(IR_FR.isTooFar);
-  delay(20);
-  BluetoothSerial.print("Front Right is in range: ");
-  delay(20);
-  BluetoothSerial.println(IR_FR.isInRange);delay(20);
+}
 
-  BluetoothSerial.println("***************************************** ");delay(20);
-
-  BluetoothSerial.print("Back left is too close: ");delay(20);
-  BluetoothSerial.println(IR_BL.isTooClose);delay(20);
-  BluetoothSerial.print("Back left is too far: ");delay(20);
-  BluetoothSerial.println(IR_BL.isTooFar);delay(20);
-  BluetoothSerial.print("Back left is in range: ");delay(20);
-  BluetoothSerial.println(IR_BL.isInRange);delay(20);
-
-  BluetoothSerial.println("***************************************** ");delay(20);
-
-  BluetoothSerial.print("Back Right is too close: ");delay(20);
-  BluetoothSerial.println(IR_BR.isTooClose);delay(20);
-  BluetoothSerial.print("Back Right is too far: ");delay(20);
-  BluetoothSerial.println(IR_BR.isTooFar);delay(20);
-  BluetoothSerial.print("Back Right is in range: ");delay(20);
-  BluetoothSerial.println(IR_BR.isInRange);delay(20);
-
-  BluetoothSerial.println("***************************************** ");delay(20);
-  */
-
-  BluetoothSerial.println("Y-Coordinate (measured from IR):");
-  delay(20);
-  BluetoothSerial.println(yCoordinate);
-  delay(20);
-  BluetoothSerial.println("X-Coordinate (measured from SONAR):");
-  delay(20);
-  BluetoothSerial.println(xCoordinate);
-  delay(20);
-  BluetoothSerial.println();
-
-  delay(4000);
-
-  //float distance;
-
-  // distance = getIRDistance(&IR_FL);
-  // BluetoothSerial.print("Front Left: ");
-  // BluetoothSerial.println(distance);
-
-  // delay(2000);
-
-  // distance = getIRDistance(&IR_FR);
-  // BluetoothSerial.print("Front Right: ");
-  // BluetoothSerial.println(distance);
-
-  // delay(2000);
-
-  // distance = getIRDistance(&IR_BL);
-  // BluetoothSerial.print("Back Left: ");
-  // BluetoothSerial.println(distance);
-
-  // delay(2000);
-
-  // distance = getIRDistance(&IR_BR);
-  // BluetoothSerial.print("Back Right: ");
-  // BluetoothSerial.println(distance);
-
-  // delay(2000);
-
-  // delay(10000);delay(20);
-  // BluetoothSerial.println();delay(20);
-
-  return FINDCORNER;
-
-  /** HOMING STUFF BELOW (PLEASE LEAVE) **/
-
-  // cw();
-
-  // // Continue to turn until its done 1 turn;
-  // if (abs(fullTurns) < 1)
-  // {
-  //   if (abs(abs(currentAngle) - abs(prevAngle)) >= 3) // Take a distance measurement for every 3 degrees turned
-  //   {
-  //     distances[indexForDistances] = HC_SR04_range();
-  //     angles[indexForDistances] = currentAngle;
-
-  //     prevAngle = currentAngle;
-  //     indexForDistances++;
-  //   }
-  //   return FINDCORNER;
-  // }
-
-  // stop();
-
-  // // Analyze the collected distances to find corners
-  // for (int i = 1; i < indexForDistances - 1; i++) // Start from 1 and end at 78 to avoid out of bound indexes
-  // {
-  //   if (distances[i] > MAX_SONARDIST_CM || distances[i] < MIN_SONARDIST_CM)
-  //     continue; // Skip invalid readings;
-
-  //   // Check for a significant change in distance indicating a corner
-  //   // Introduce a threshold (e.g., deltaThreshold) to define what constitutes a significant change
-  //   float deltaThreshold = 2; // Adjust based on your robot's environment and sensor
-  //   bool isCorner = ((distances[i] - distances[i + 1]) > deltaThreshold) && 
-  //                   ((distances[i] - distances[i - 1]) > deltaThreshold);
-    
-  //   if (isCorner)
-  //   {
-  //     cornerDistances[cornerIndex] = distances[i - 1];
-  //     angleCorner[cornerIndex] = angles[i - 1];
-  //     cornerIndex++;
-  //     cornerDistances[cornerIndex] = distances[i];
-  //     angleCorner[cornerIndex] = angles[i];
-  //     cornerIndex++;
-  //     cornerDistances[cornerIndex] = distances[i + 1];
-  //     angleCorner[cornerIndex] = angles[i + 1];
-  //     cornerIndex++;
-
-  //     if (cornerIndex >= 24) 
-  //       break;
-  //   }
-  // }
-
-  // // Output the detected corners
-  // BluetoothSerial.println("Corners/Angles");
-  // BluetoothSerial.println("");
-
-  // for (int i = 0; i < cornerIndex; i++)
-  // {
-  //   BluetoothSerial.print("Before Corner Distance: ");
-  //   BluetoothSerial.println(cornerDistances[i]);
-  //   BluetoothSerial.print("Before Corner Angle: ");
-  //   BluetoothSerial.println(angleCorner[i]);
-  //   i++;
-  //   BluetoothSerial.print("Middle Distance: ");
-  //   BluetoothSerial.println(cornerDistances[i]);
-  //   BluetoothSerial.print("Middle Angle: ");
-  //   BluetoothSerial.println(angleCorner[i]);
-  //   i++;
-  //   BluetoothSerial.print("After Distance: ");
-  //   BluetoothSerial.println(cornerDistances[i]);
-  //   BluetoothSerial.print("After Angle: ");
-  //   BluetoothSerial.println(angleCorner[i]);
-  //   BluetoothSerial.println("");
-  // }
-
-  // BluetoothSerial.print("Amount of Corners Indicated: ");
-  // BluetoothSerial.println((cornerIndex + 1) /3);
-  // BluetoothSerial.print("Distances/Angles Measured:");
-  // BluetoothSerial.println(indexForDistances);
-  // BluetoothSerial.println("End");
-
-  // return RUNNING;
+STATE driveToCorner(){
+  //Firstly rotate back from the overshoot
+  if (abs(abs(currentAngle) - abs(prevAngle)) <= 9){
+    return DRIVETOCORNER;
+  }
+  return STOPPED;
 }
 
 STATE straight()
@@ -900,7 +794,22 @@ STATE straight()
 }
 
 STATE running() {
+  BluetoothSerial.print("Current Distance: ");
+  delay(20);
+  BluetoothSerial.println(currentDist);
+  delay(20);
+  BluetoothSerial.print("Previous Distance: ");
+  delay(20);
+  BluetoothSerial.println(prevDist);
+  delay(20);
+  BluetoothSerial.print("Prev Previous Distance: ");
+  delay(20);
+  BluetoothSerial.println(prevprevDist);
+  delay(20);
+  BluetoothSerial.println();
+  
   fast_flash_double_LED_builtin();
+  delay(100000);
 
   return RUNNING;
 }
