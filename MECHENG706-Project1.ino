@@ -216,14 +216,14 @@ pidvars xVar =
   .eprev = 0,
   .eintegral = 0,
   .integralLimit = 1000,
-  .kp = 3.38,
-  .ki = 0.154, // 0.154
-  .kd = 1.02,  // 1.02
+  .kp = 2.5,
+  .ki = 0.0, // 0.154
+  .kd = 0.0,  // 1.02
   .prevT = 0,
   .breakOutTime = 100,
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 100,
+  .minError = 50,
 };
 
 //y coord PID variables
@@ -233,14 +233,14 @@ pidvars yVar =
   .eprev = 0,
   .eintegral = 0,
   .integralLimit = 1000,
-  .kp = 1.96,
-  .ki = 0.205, // 0.205
-  .kd = 1.04,  // 1.04
+  .kp = 0.75,
+  .ki = 0.0, // 0.205
+  .kd = 0.0,  // 1.04
   .prevT = 0,
   .breakOutTime = 100,
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 100,
+  .minError = 50,
 };
 
 //angular PID variables
@@ -250,14 +250,14 @@ pidvars aVar =
   .eprev = 0,
   .eintegral = 0,
   .integralLimit = 1000, // ????
-  .kp = 2.72,
-  .ki = 0.343, // 0.343
-  .kd = 1.21, // 1.21
+  .kp = 0.2,
+  .ki = 0.0, // 0.343
+  .kd = 0.0, // 1.21
   .prevT = 0, 
   .breakOutTime = 500,
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 100,
+  .minError = 20,
 };
 
 //Initialise matrix for inverse kinematics:
@@ -784,8 +784,8 @@ STATE straight()
     return STRAIGHT;
   }
 
-  float xDesiredPoisition = 1500; // LONG DISTANCE
-  float yDesiredPosition = 210;  // SHORT DISTANCE
+  float xDesiredPoisition = 300; // LONG DISTANCE
+  float yDesiredPosition = 900;  // SHORT DISTANCE
 
   updateCoordinates();
 
@@ -798,6 +798,8 @@ STATE straight()
   } else {
     angleError = currentAngle - 360; // Moving clockwise to reach 0
   }
+
+  // angleError = 0;
 
   // BluetoothSerial.print("X-Error: ");
   // delay(20);
@@ -1234,7 +1236,7 @@ float pidControl(pidvars* pidName, float error){
   // store previous error
   pidName->eprev = error;
 
-  if (error < pidName->minError)
+  if (error < abs(pidName->minError))
   {
     pidName->withinError = true;
   }
