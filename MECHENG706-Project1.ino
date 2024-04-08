@@ -1237,9 +1237,6 @@ void driveToCorner(){
   float frontRightDistance = getIRDistance(&IR_FR);
   float frontLeftDistance = getIRDistance(&IR_FL);
 
-  drive(x,y);
-  drive()
-
 }
 
 // Call this function once at the beginning after robot is alligned to define what side starts closer to the wall
@@ -1260,4 +1257,64 @@ void setWallDirection()
     wallDirection = 1;
     // BluetoothSerial.println("Starting point: Top Right or Bottom Left");
   }
+
+  float sonarDistance = ((10 * HC_SR04_range()) + 122)
+  if (sonarDistance < 600){ // robot is facing towards wall (600 is abitrary distance) basically 600 < 1000 (halfway point)
+    robotDirection = 0;
+  }
+  else {
+    robotDirection = 1;
+  }
 }
+
+STATE drive(){
+
+
+if (tanesFunction){ // Will output true if the robot has reached the current desired position
+  pathStep++;
+
+  // There will be 2 coordinate paths that the robot will take depending on direction it STARTTED (robotDirection)
+  if (robotDirection){ // started facing away from wall (use pathArray1)
+
+  }
+  else { // started facing wall (use pathArray0)
+
+  }
+
+
+}
+
+
+
+
+// UPDATE DESIRED POSITION
+  drivePoints
+}
+
+
+int pathStep = 0;
+
+pathArray0[20][2] = {{150,150},{1850,150},{1850,250},{150,250},{150,350},{1850,150},
+{},
+{}
+,}
+
+pathArray1[20][2] =  
+
+
+float xPoint[10]; // X points to travel along the line, adjust the size as needed
+float yPoint[10]; // Y points to travel along the line, adjust the size as needed
+
+void drivePoints(float xCoordinate, float yCoordinate, float xDesired, float yDesired, int n) {
+    // Calculate the step increments for each axis
+    float xStep = (xDesired - xCoordinate) / n;
+    float yStep = (yDesired - yCoordinate) / n;
+
+    // Populate the arrays with the points
+    // Start from 1 to skip the current position and end at n to include the desired position
+    for (int i = 1; i <= n; i++) {
+        xPoint[i - 1] = xCoordinate + xStep * i;
+        yPoint[i - 1] = yCoordinate + yStep * i;
+    }
+}
+
