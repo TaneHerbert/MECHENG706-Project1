@@ -62,9 +62,16 @@ enum IRSENSORTYPE
   LONGRANGE
 };
 
+enum PIDCONTROL
+{
+  XCONTROL,
+  YCONTROL,
+  ACONTROL
+};
+
 struct nonBlockingTimers
 {
-  unsigned long lastUpdateTimeGyro;
+  unsigned long lastUpdateTime;
 };
 
 struct IRSensor
@@ -82,12 +89,18 @@ struct IRSensor
 //declare pid struct
 struct pidvars 
 {
+  PIDCONTROL mPIDCONTROL;
   float eprev;
   float eintegral;
+  float integralLimit;
   float kp;
   float ki;
   float kd;
-  long prevT;
+  unsigned long prevT;
+  unsigned long breakOutTime;
+  unsigned long prevBreakOutTime;
+  bool withinError;
+  float minError;
 };
 
 /**
@@ -140,9 +153,14 @@ Servo right_font_motor;  // create servo object to control Vex Motor Controller 
 
 SoftwareSerial BluetoothSerial(BLUETOOTH_RX, BLUETOOTH_TX);
 
-nonBlockingTimers mNonBlockingTimers = 
+nonBlockingTimers mNonBlockingTimerGyro = 
 {
-  .lastUpdateTimeGyro = 0,
+  .lastUpdateTime = 0,
+};
+
+nonBlockingTimers mNonBlockingTimerPID = 
+{
+  .lastUpdateTime = 0,
 };
 
 static STATE machine_state;
@@ -155,7 +173,7 @@ IRSensor IR_FL =
   .isTooClose = true,
   .isInRange = true,
   .lowerVoltage = 0.30, 
-  .upperVoltage = 2.20 
+  .upperVoltage = 2.20,
 };
 
 IRSensor IR_BL = 
@@ -166,7 +184,7 @@ IRSensor IR_BL =
   .isTooClose = true,
   .isInRange = true,
   .lowerVoltage = 0.51,
-  .upperVoltage = 2.00 
+  .upperVoltage = 2.00
 };
 
 IRSensor IR_FR = 
@@ -194,34 +212,52 @@ IRSensor IR_BR =
 //x coord PID variables
 pidvars xVar = 
 {
+  .mPIDCONTROL = XCONTROL,
   .eprev = 0,
   .eintegral = 0,
+  .integralLimit = 1000,
   .kp = 3.38,
-  .ki = 0.154,
-  .kd = 1.02,
-  .prevT = 0
+  .ki = 0.154, // 0.154
+  .kd = 1.02,  // 1.02
+  .prevT = 0,
+  .breakOutTime = 100,
+  .prevBreakOutTime = 0,
+  .withinError = false,
+  .minError = 100,
 };
 
 //y coord PID variables
 pidvars yVar = 
 {
+  .mPIDCONTROL = YCONTROL,
   .eprev = 0,
   .eintegral = 0,
+  .integralLimit = 1000,
   .kp = 1.96,
-  .ki = 0.205,
-  .kd = 1.04,
-  .prevT = 0
+  .ki = 0.205, // 0.205
+  .kd = 1.04,  // 1.04
+  .prevT = 0,
+  .breakOutTime = 100,
+  .prevBreakOutTime = 0,
+  .withinError = false,
+  .minError = 100,
 };
 
 //angular PID variables
 pidvars aVar = 
 {
+  .mPIDCONTROL = ACONTROL,
   .eprev = 0,
   .eintegral = 0,
+  .integralLimit = 1000, // ????
   .kp = 2.72,
-  .ki = 0.343,
-  .kd = 1.21,
-  .prevT = 0
+  .ki = 0.343, // 0.343
+  .kd = 1.21, // 1.21
+  .prevT = 0, 
+  .breakOutTime = 500,
+  .prevBreakOutTime = 0,
+  .withinError = false,
+  .minError = 100,
 };
 
 //Initialise matrix for inverse kinematics:
@@ -743,15 +779,27 @@ STATE findCorner() {
 
 STATE straight()
 {
-  float xDesiredPoisition = 1000; // LONG DISTANCE
-  float yDesiredPosition = 150;   // SHORT DISTANCE
+  if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 50)) // Run straight every 50 ms
+  {
+    return STRAIGHT;
+  }
+
+  float xDesiredPoisition = 1500; // LONG DISTANCE
+  float yDesiredPosition = 210;  // SHORT DISTANCE
 
   updateCoordinates();
 
   float xError = xDesiredPoisition - xCoordinate;
   float yError = yDesiredPosition - yCoordinate;
-  float angleError = 0.0 -  currentAngle;
 
+  float angleError;
+  if (currentAngle <= 180) {
+    angleError = currentAngle; // Moving counterclockwise to reach 0
+  } else {
+    angleError = currentAngle - 360; // Moving clockwise to reach 0
+  }
+
+  // BluetoothSerial.print("X-Error: ");
   // delay(20);
   // BluetoothSerial.println(xError);
   // delay(20);
@@ -768,6 +816,31 @@ STATE straight()
   float xVelocity = pidControl(&xVar, xError);
   float yVelocity = pidControl(&yVar, yError);
   float aVelocity = pidControl(&aVar, angleError);
+
+  if (xVar.withinError == true && yVar.withinError == true && aVar.withinError == true)
+  {
+    int check = 0;
+
+    if (nonBlockingDelay(&xVar.breakOutTime, xVar.breakOutTime))
+    {
+      check++;
+    }
+
+    if (nonBlockingDelay(&yVar.breakOutTime, yVar.breakOutTime))
+    {
+      check++;
+    }
+
+    if (nonBlockingDelay(&aVar.breakOutTime, aVar.breakOutTime))
+    {
+      check++;
+    }
+
+    if (check == 3)
+    {
+      return STOPPED;
+    }
+  }
 
   // BluetoothSerial.print("X-Velocity: ");
   // delay(20);
@@ -790,7 +863,7 @@ STATE straight()
   // delay(20);
   // BluetoothSerial.print("Motor 2: ");
   // delay(20);
-  // BluetoothSerial.println(angVelArray[1]);
+  // BluetoothSerial.println(-1 * angVelArray[1]);
   // delay(20);
   // BluetoothSerial.print("Motor 3: ");
   // delay(20);
@@ -798,9 +871,8 @@ STATE straight()
   // delay(20);
   // BluetoothSerial.print("Motor 4: ");
   // delay(20);
-  // BluetoothSerial.println(angVelArray[3]);
+  // BluetoothSerial.println(-1 * angVelArray[3]);
   // delay(20);
-  // delay(2000);
 
   if (wallDirection == 0)
   {
@@ -835,6 +907,13 @@ STATE stopped() {
   stop();
   disable_motors();
   slow_flash_LED_builtin();
+
+  BluetoothSerial.println("STOPPED HA"); 
+
+  while(1)
+  {
+
+  }
 
   return STOPPED;
 }
@@ -910,7 +989,7 @@ void GyroSetup()
 // TODO: ALWAYS THINKS T = 100 when in fact could be slightly above or below. Need to get actual difference from non blocking delay
 void getCurrentAngle() 
 {
-  if (!nonBlockingDelay(&mNonBlockingTimers.lastUpdateTimeGyro, T))
+  if (!nonBlockingDelay(&mNonBlockingTimerGyro.lastUpdateTime, T))
   {
     return;
   }
@@ -1073,7 +1152,7 @@ void updateCoordinates()
     //dont update y coordinate.
   }
 
-  xCoordinate = 1200 - ((10 * HC_SR04_range()) + 122);
+  xCoordinate = 2000 - ((10 * HC_SR04_range()) + 122);
 }
 // ----------------------Control System------------------------
 
@@ -1099,7 +1178,7 @@ void setWallDirection()
 
 //Function for inverse kinematics. Input velocities, output angular velocity of each wheel.
 void inverseKinematics (float Vx, float Vy, float Az){
-  float radius = 30;
+  float radius = 27;
 
   //Input values into the velocity matrix
   velArray[0] = Vx;
@@ -1112,12 +1191,20 @@ void inverseKinematics (float Vx, float Vy, float Az){
       angVelArray[i] += invKMatrix[i][k] * velArray[k];
     }
     angVelArray[i] / radius;
+
+    // Saturation for motors
+    if (angVelArray[i] > 200) {
+      angVelArray[i] = 200;
+    } else if (angVelArray[i] < -200) {
+      angVelArray[i] = -200;
+    }
   }
 } 
 
+// TODO: Anti acceleration techniques and also exit condition. if the error hasnt changed over certain time then exit
+
 //Pid Logic, input error, and pidvars struct name. Returns velocity.
 float pidControl(pidvars* pidName, float error){
-
   // time difference
   long currT = micros();
   // long et = currT - pidName->prevT;
@@ -1125,17 +1212,36 @@ float pidControl(pidvars* pidName, float error){
   pidName->prevT = currT;
 
   //derivitive:
-  float dedt = (error - pidName->eprev)/(deltaT);
-  //integral:
-  pidName->eintegral = pidName->eintegral + error * deltaT;
+  float dedt = (error - pidName->eprev)/(deltaT); 
+
+  // Integral with anti-windup
+  float potentialIntegral = pidName->eintegral + error * deltaT;
+  // Check if the potential integral term is within bounds
+  if (potentialIntegral > pidName->integralLimit) 
+  {
+    pidName->eintegral = pidName->integralLimit;
+  } else if (potentialIntegral < -pidName->integralLimit) 
+  {
+    pidName->eintegral = -pidName->integralLimit;
+  } else 
+  {
+    pidName->eintegral = potentialIntegral;
+  }
 
   //control signal:
   float velocity = pidName->kp * error + pidName->ki * pidName->eintegral + pidName->kd * dedt;
 
-  // Saturation ??
-
   // store previous error
   pidName->eprev = error;
+
+  if (error < pidName->minError)
+  {
+    pidName->withinError = true;
+  }
+  else
+  {
+    pidName->prevBreakOutTime = millis();
+  }
 
   return velocity;
 }
