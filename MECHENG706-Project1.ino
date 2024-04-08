@@ -50,7 +50,8 @@ const byte right_front = 49;
 enum STATE 
 {
   INITIALISING,
-  FINDCORNER,
+  ORIENTATEROBOT,
+  DRIVETOCORNER,
   STRAIGHT,
   RUNNING,
   STOPPED
@@ -304,7 +305,8 @@ void setWallDirection();
 STATE initialising();
 STATE running();
 STATE stopped();
-STATE findCorner();
+STATE orientateRobot();
+STATE driveToCorner();
 STATE straight();
 
 // Battery Voltage
@@ -347,8 +349,11 @@ void loop(void)  //main loop
     case INITIALISING:
       machine_state = initialising();
       break;
-    case FINDCORNER:
-      machine_state = findCorner();
+    case ORIENTATEROBOT:
+      machine_state = orientateRobot();
+      break;
+    case DRIVETOCORNER:
+      machine_state = driveToCorner();
       break;
     case STRAIGHT:
       machine_state = straight();
@@ -585,19 +590,18 @@ STATE initialising() {
 
   currentAngle = 0;
 
-  return FINDCORNER;
+  return ORIENTATEROBOT;
 }
 
-STATE findCorner() {
+STATE orientateRobot() {
 
   /*NEW HOMING CODE*/
 
   cw();
 
-
   //Turn until it reaches a mininum where both long range sensors are in range
   if (!validOrientation){
-    if (abs(abs(currentAngle) - abs(prevAngle)) >= 9) // Check orientation every 7 degrees turned
+    if (abs(abs(currentAngle) - abs(prevAngle)) >= 9) // Check orientation every 9 degrees turned
     {
       currentDist = HC_SR04_range(); //measure current sonar distance
       getIRDistance(&IR_BL_UNLIMITED); //measure distances for long range sensors on either side
@@ -608,80 +612,27 @@ STATE findCorner() {
         //Check if you are at a horizontal orientation, and not vertical (By checking if both long range sensors arent too far)
         if ((!IR_BL_UNLIMITED.isTooFar) && (!IR_FR_UNLIMITED.isTooFar)){
           validOrientation = true;
-          return FINDCORNER;
+          return ORIENTATEROBOT;
         } 
       }
       prevprevDist = prevDist;
       prevDist = currentDist;
       prevAngle = currentAngle;
     }
-    return FINDCORNER;
+    return ORIENTATEROBOT;
   }
-
   stop();
-  return RUNNING;
 
-  /** PREVIOUS HOMING CODE BELOW **/
+  return DRIVETOCORNER;
 
-  // // Analyze the collected distances to find corners
-  // for (int i = 1; i < indexForDistances - 1; i++) // Start from 1 and end at 78 to avoid out of bound indexes
-  // {
-  //   if (distances[i] > MAX_SONARDIST_CM || distances[i] < MIN_SONARDIST_CM)
-  //     continue; // Skip invalid readings;
+}
 
-  //   // Check for a significant change in distance indicating a corner
-  //   // Introduce a threshold (e.g., deltaThreshold) to define what constitutes a significant change
-  //   float deltaThreshold = 2; // Adjust based on your robot's environment and sensor
-  //   bool isCorner = ((distances[i] - distances[i + 1]) > deltaThreshold) && 
-  //                   ((distances[i] - distances[i - 1]) > deltaThreshold);
-    
-  //   if (isCorner)
-  //   {
-  //     cornerDistances[cornerIndex] = distances[i - 1];
-  //     angleCorner[cornerIndex] = angles[i - 1];
-  //     cornerIndex++;
-  //     cornerDistances[cornerIndex] = distances[i];
-  //     angleCorner[cornerIndex] = angles[i];
-  //     cornerIndex++;
-  //     cornerDistances[cornerIndex] = distances[i + 1];
-  //     angleCorner[cornerIndex] = angles[i + 1];
-  //     cornerIndex++;
-
-  //     if (cornerIndex >= 24) 
-  //       break;
-  //   }
-  // }
-
-  // // Output the detected corners
-  // BluetoothSerial.println("Corners/Angles");
-  // BluetoothSerial.println("");
-
-  // for (int i = 0; i < cornerIndex; i++)
-  // {
-  //   BluetoothSerial.print("Before Corner Distance: ");
-  //   BluetoothSerial.println(cornerDistances[i]);
-  //   BluetoothSerial.print("Before Corner Angle: ");
-  //   BluetoothSerial.println(angleCorner[i]);
-  //   i++;
-  //   BluetoothSerial.print("Middle Distance: ");
-  //   BluetoothSerial.println(cornerDistances[i]);
-  //   BluetoothSerial.print("Middle Angle: ");
-  //   BluetoothSerial.println(angleCorner[i]);
-  //   i++;
-  //   BluetoothSerial.print("After Distance: ");
-  //   BluetoothSerial.println(cornerDistances[i]);
-  //   BluetoothSerial.print("After Angle: ");
-  //   BluetoothSerial.println(angleCorner[i]);
-  //   BluetoothSerial.println("");
-  // }
-
-  // BluetoothSerial.print("Amount of Corners Indicated: ");
-  // BluetoothSerial.println((cornerIndex + 1) /3);
-  // BluetoothSerial.print("Distances/Angles Measured:");
-  // BluetoothSerial.println(indexForDistances);
-  // BluetoothSerial.println("End");
-
-  // return RUNNING;
+STATE driveToCorner(){
+  //Firstly rotate back from the overshoot
+  if (abs(abs(currentAngle) - abs(prevAngle)) <= 9){
+    return DRIVETOCORNER;
+  }
+  return STOPPED;
 }
 
 STATE straight()
