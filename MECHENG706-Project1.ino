@@ -37,9 +37,9 @@ const int ECHO_PIN = 43;
 const int gyroSensorPin = A15;
 
 // Motor control pins
-const byte left_front = 46;
-const byte left_rear = 47;
-const byte right_rear = 48;
+const byte left_front  = 46;
+const byte left_rear   = 47;
+const byte right_rear  = 48;
 const byte right_front = 49;
 
 /** 
@@ -52,7 +52,7 @@ enum STATE
   INITIALISING,
   ORIENTATEROBOT,
   DRIVETOCORNER,
-  STRAIGHT,
+  DRIVEPATHWAY,
   RUNNING,
   STOPPED
 };
@@ -93,15 +93,15 @@ struct pidvars
   PIDCONTROL mPIDCONTROL;
   float eprev;
   float eintegral;
-  float integralLimit;
+  float integralLimit; // For anti integral wind-up
   float kp;
   float ki;
   float kd;
   unsigned long prevT;
-  unsigned long breakOutTime;
-  unsigned long prevBreakOutTime;
-  bool withinError;
-  float minError;
+  unsigned long breakOutTime;      // Min break out time 
+  unsigned long prevBreakOutTime;  // Prev break out time
+  bool withinError; // Error is below minimum error
+  float minError;   // Minimum error that allows break out condition
 };
 
 /**
@@ -128,18 +128,9 @@ float currentAngle = 0;
 float prevAngle = 0;
 int fullTurns = 0;  // Counter for full turns. Positive for clockwise, negative for counterclockwise
 
-float distances[200] = { 0 }; //reduntant now CAN DELETE
 float currentDist = 0;
 float prevDist = 0;
 float prevprevDist = 0;
-
-float angles[200] = { 0 }; //reduntant now CAN DELETE
-
-float angleCorner[200] = { 0 };
-float cornerDistances[200] = { 0 };
-
-int cornerIndex = 0;
-int indexForDistances = 0;
 
 //Boolean for homing function to check the orientation of robot
 bool validOrientation = false;
@@ -152,7 +143,6 @@ const unsigned int MAX_DIST = 23200;
 
 // Motor Speed
 int speed_val = 100;
-int speed_change;
 
 Servo left_font_motor;   // create servo object to control Vex Motor Controller 29
 Servo left_rear_motor;   // create servo object to control Vex Motor Controller 29
@@ -167,6 +157,11 @@ nonBlockingTimers mNonBlockingTimerGyro =
 };
 
 nonBlockingTimers mNonBlockingTimerPID = 
+{
+  .lastUpdateTime = 0,
+};
+
+nonBlockingTimers mNonBlockingTimerPrint = 
 {
   .lastUpdateTime = 0,
 };
@@ -245,15 +240,15 @@ pidvars xVar =
   .mPIDCONTROL = XCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .integralLimit = 1000,
-  .kp = 2.5,
+  .integralLimit = 200,
+  .kp = 0.75,
   .ki = 0.0, // 0.154
   .kd = 0.0,  // 1.02
   .prevT = 0,
-  .breakOutTime = 100,
+  .breakOutTime = 20,
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 50,
+  .minError = 70,
 };
 
 //y coord PID variables
@@ -262,15 +257,15 @@ pidvars yVar =
   .mPIDCONTROL = YCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .integralLimit = 1000,
-  .kp = 0.75,
+  .integralLimit = 200,
+  .kp = 25,
   .ki = 0.0, // 0.205
   .kd = 0.0,  // 1.04
   .prevT = 0,
-  .breakOutTime = 100,
+  .breakOutTime = 20,
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 50,
+  .minError = 20,
 };
 
 //angular PID variables
@@ -279,15 +274,15 @@ pidvars aVar =
   .mPIDCONTROL = ACONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .integralLimit = 1000, // ????
-  .kp = 0.2,
+  .integralLimit = 50, // ????
+  .kp = 20,
   .ki = 0.0, // 0.343
   .kd = 0.0, // 1.21
   .prevT = 0, 
-  .breakOutTime = 500,
+  .breakOutTime = 20,
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 20,
+  .minError = 2,
 };
 
 //Initialise matrix for inverse kinematics:
@@ -301,6 +296,27 @@ float invKMatrix[4][3] =
 
 float velArray[3];
 float angVelArray[4];
+
+// TEST
+int pathStep = 0;
+int segmentStep = 0;
+void drivePoints(float xCoordinate, float yCoordinate, float xDesired, float yDesired, int n);
+
+//float xCoordinateDes[20] = {150, 1750, 1750, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150};
+//float yCoordinateDes[20] = {150, 150, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1050, 1050};
+float xCoordinateDes[20] = {150, 1750, 1750, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150};
+float yCoordinateDes[20] = {150, 150, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1050, 1050};
+
+
+
+float segmentArray[21] = {1,10,5,10,5,10,5,10,5,10,5,10,5,10,5,10,5,10,5,10,99999}; // tells us how many segments we should break each path step into
+
+float xDesired = 150;
+float yDesired = 150;
+
+float xPoint[100]; // X points to travel along the line, adjust the size as needed
+float yPoint[100]; // Y points to travel along the line, adjust the size as needed
+// TEST
 
 /**
  * Private Decleration 
@@ -316,7 +332,6 @@ void ccw();
 void cw();
 void strafe_left();
 void strafe_right();
-void speed_change_smooth();
 
 // Sonar
 float HC_SR04_range();
@@ -343,7 +358,7 @@ STATE running();
 STATE stopped();
 STATE orientateRobot();
 STATE driveToCorner();
-STATE straight();
+STATE drivepathway();
 
 // Battery Voltage
 boolean is_battery_voltage_OK();
@@ -355,6 +370,9 @@ void printBool(IRSensor mIRSensor);
 // Control System
 void inverseKinematics (float Vx, float Vy, float Az);
 float pidControl(pidvars* pidName, float error);
+
+bool driveToPosition(float xDesiredPoisition, float yDesiredPosition);
+void drivePoints(float xCoordinate, float yCoordinate, float xDesired, float yDesired);
 
 /**
  * Set up
@@ -391,8 +409,8 @@ void loop(void)  //main loop
     case DRIVETOCORNER:
       machine_state = driveToCorner();
       break;
-    case STRAIGHT:
-      machine_state = straight();
+    case DRIVEPATHWAY:
+      machine_state = drivepathway();
       break;
     case RUNNING:  //Lipo Battery Voltage OK
       machine_state = running();
@@ -494,20 +512,13 @@ void strafe_right()
   right_font_motor.writeMicroseconds(1500 + speed_val);
 }
 
-void speed_change_smooth()
-{
-  speed_val += speed_change;
-  if (speed_val > 1000)
-    speed_val = 1000;
-  speed_change = 0;
-}
-
 // ----------------------Sonar------------------------
 float HC_SR04_range()
 {
   unsigned long t1;
   unsigned long t2;
   unsigned long pulse_width;
+
   float cm;
   float inches;
 
@@ -555,7 +566,7 @@ float HC_SR04_range()
     BluetoothSerial.println("HC-SR04: Out of range");
     return -1;
   }
-    
+
   return cm;
 }
 
@@ -619,20 +630,14 @@ STATE initialising() {
   GyroSetup();  //Set up starting voltage for gyro
   setWallDirection();
 
-  // TODO: Needs to be changed to just before starting Straight
-  xVar.prevT = micros();
-  yVar.prevT = micros();
-  aVar.prevT = micros();
-
   currentAngle = 0;
 
-  return ORIENTATEROBOT;
+  return DRIVEPATHWAY;
 }
 
 STATE orientateRobot() {
 
   /*NEW HOMING CODE*/
-
   cw();
 
   //Turn until it reaches a mininum where both long range sensors are in range
@@ -657,10 +662,10 @@ STATE orientateRobot() {
     }
     return ORIENTATEROBOT;
   }
+
   stop();
 
   return DRIVETOCORNER;
-
 }
 
 STATE driveToCorner(){
@@ -671,126 +676,46 @@ STATE driveToCorner(){
   return STOPPED;
 }
 
-STATE straight()
+STATE drivepathway()
 {
-  if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 50)) // Run straight every 50 ms
-  {
-    return STRAIGHT;
-  }
+  // drivePoints(xCoordinateDes[xCoordinateDesIndex], yCoordinateDes[yCoordinateDesIndex], xCoordinateDes[xCoordinateDesIndex + 1], yCoordinateDes[yCoordinateDesIndex + 1]);
 
-  float xDesiredPoisition = 300; // LONG DISTANCE
-  float yDesiredPosition = 900;  // SHORT DISTANCE
+  // bool arrivedAtPosition = driveToPosition(xCoordinateDes[xCoordinateDesIndex + 1], yCoordinateDes[yCoordinateDesIndex + 1]);
 
-  updateCoordinates();
+  // if (arrivedAtPosition == true)
+  // {
+  //   xCoordinateDesIndex++;
+  //   yCoordinateDesIndex++;
+  //   BluetoothSerial.println("TRUE");
+  // }
 
-  float xError = xDesiredPoisition - xCoordinate;
-  float yError = yDesiredPosition - yCoordinate;
+  if (driveToPosition(xDesired, yDesired)){ // Will output true if the robot has reached the current desired position
+    segmentStep++;
+    xDesired = xPoint[segmentStep];
+    yDesired = yPoint[segmentStep];
 
-  float angleError;
-  if (currentAngle <= 180) {
-    angleError = currentAngle; // Moving counterclockwise to reach 0
-  } else {
-    angleError = currentAngle - 360; // Moving clockwise to reach 0
-  }
+    if (segmentStep >= segmentArray[pathStep]){ // The robot has reached the end of the step and needs to move to the next point path point
+      segmentStep = 0; // reset segment step
+      pathStep++;
 
-  // angleError = 0;
-
-  // BluetoothSerial.print("X-Error: ");
-  // delay(20);
-  // BluetoothSerial.println(xError);
-  // delay(20);
-  // BluetoothSerial.print("Y-Error: ");
-  // delay(20);
-  // BluetoothSerial.println(yError);
-  // delay(20);
-  // BluetoothSerial.print("Angle-error: ");
-  // delay(20);
-  // BluetoothSerial.println(angleError);
-  // delay(20);
-  // BluetoothSerial.println();
-
-  float xVelocity = pidControl(&xVar, xError);
-  float yVelocity = pidControl(&yVar, yError);
-  float aVelocity = pidControl(&aVar, angleError);
-
-  if (xVar.withinError == true && yVar.withinError == true && aVar.withinError == true)
-  {
-    int check = 0;
-
-    if (nonBlockingDelay(&xVar.breakOutTime, xVar.breakOutTime))
-    {
-      check++;
+      // There will be 2 coordinate paths that the robot will take depending on direction it STARTTED (robotDirection)
+      if (true == true){ // started facing away from wall (use pathArray1)
+        drivePoints((xCoordinateDes[pathStep-1]),(yCoordinateDes[pathStep-1]),(xCoordinateDes[pathStep]),(yCoordinateDes[pathStep]),(segmentArray[pathStep]));
+      }
+      else { // started facing wall (use pathArray0)
+        //drivePoints((pathArray0[pathStep-1][1]),(pathArray0[pathStep-1][2]),(pathArray0[pathStep][1]),(pathArray0[pathStep][2]),(segmentArray[pathStep]));
+      }
+      xDesired = xPoint[0];
+      yDesired = yPoint[0];
     }
-
-    if (nonBlockingDelay(&yVar.breakOutTime, yVar.breakOutTime))
-    {
-      check++;
-    }
-
-    if (nonBlockingDelay(&aVar.breakOutTime, aVar.breakOutTime))
-    {
-      check++;
-    }
-
-    if (check == 3)
-    {
-      return STOPPED;
-    }
+    BluetoothSerial.print("X-Position ");
+    BluetoothSerial.println(xDesired);
+    BluetoothSerial.print("Y-Position ");
+    BluetoothSerial.println(yDesired);
+    BluetoothSerial.println();
   }
 
-  // BluetoothSerial.print("X-Velocity: ");
-  // delay(20);
-  // BluetoothSerial.println(xVelocity);
-  // delay(20);
-  // BluetoothSerial.print("Y-Velocity: ");
-  // delay(20);
-  // BluetoothSerial.println(yVelocity);
-  // delay(20);
-  // BluetoothSerial.print("Z-Velocity: ");
-  // delay(20);
-  // BluetoothSerial.println(aVelocity);
-  // delay(20);
-
-  inverseKinematics(xVelocity, yVelocity, aVelocity);
-
-  // BluetoothSerial.print("Motor 1: ");
-  // delay(20);
-  // BluetoothSerial.println(angVelArray[0]);
-  // delay(20);
-  // BluetoothSerial.print("Motor 2: ");
-  // delay(20);
-  // BluetoothSerial.println(-1 * angVelArray[1]);
-  // delay(20);
-  // BluetoothSerial.print("Motor 3: ");
-  // delay(20);
-  // BluetoothSerial.println(angVelArray[2]);
-  // delay(20);
-  // BluetoothSerial.print("Motor 4: ");
-  // delay(20);
-  // BluetoothSerial.println(-1 * angVelArray[3]);
-  // delay(20);
-
-  if (wallDirection == 0)
-  {
-    left_font_motor.writeMicroseconds(1500 + angVelArray[0]);
-    right_font_motor.writeMicroseconds(1500 - angVelArray[1]);
-    left_rear_motor.writeMicroseconds(1500 + angVelArray[2]);
-    right_rear_motor.writeMicroseconds(1500 - angVelArray[3]);
-  }
-  else // I think opposite
-  {
-    left_font_motor.writeMicroseconds(1500 - angVelArray[0]);
-    right_font_motor.writeMicroseconds(1500 + angVelArray[1]);
-    left_rear_motor.writeMicroseconds(1500 - angVelArray[2]);
-    right_rear_motor.writeMicroseconds(1500 + angVelArray[3]);
-  }
-
-  angVelArray[0] = 0.0;
-  angVelArray[1] = 0.0;
-  angVelArray[2] = 0.0;
-  angVelArray[3] = 0.0;
-
-  return STRAIGHT;
+  return DRIVEPATHWAY;
 }
 
 STATE running() {
@@ -905,6 +830,8 @@ void getCurrentAngle()
     return;
   }
 
+  unsigned long time = millis() - mNonBlockingTimerGyro.lastUpdateTime;
+
   // convert the 0-1023 signal to 0-5v
   float gyroRate = (analogRead(gyroSensorPin) * gyroSupplyVoltage) / 1023;
   // find the voltage offset the value of voltage when gyro is zero (still)
@@ -914,7 +841,7 @@ void getCurrentAngle()
   // if the angular velocity is less than the threshold, ignore it
   if (abs(angularVelocity) >= rotationThreshold) {
     // we are running a loop in T (of T/1000 second).
-    float angleChange = angularVelocity / (1000 / T);
+    float angleChange = angularVelocity / (1000 / time);
     currentAngle += angleChange;
 
     // Accumulate the angle change
@@ -1088,7 +1015,8 @@ void setWallDirection()
 }
 
 //Function for inverse kinematics. Input velocities, output angular velocity of each wheel.
-void inverseKinematics (float Vx, float Vy, float Az){
+void inverseKinematics (float Vx, float Vy, float Az)
+{
   float radius = 27;
 
   //Input values into the velocity matrix
@@ -1104,15 +1032,15 @@ void inverseKinematics (float Vx, float Vy, float Az){
     angVelArray[i] / radius;
 
     // Saturation for motors
-    if (angVelArray[i] > 200) {
-      angVelArray[i] = 200;
-    } else if (angVelArray[i] < -200) {
-      angVelArray[i] = -200;
+    if (angVelArray[i] > 100) {
+      angVelArray[i] = 100;
+    } else if (angVelArray[i] < -100) {
+      angVelArray[i] = -100;
     }
   }
 } 
 
-// TODO: Anti acceleration techniques and also exit condition. if the error hasnt changed over certain time then exit
+// TODO: If the error hasnt changed over certain time then exit
 
 //Pid Logic, input error, and pidvars struct name. Returns velocity.
 float pidControl(pidvars* pidName, float error){
@@ -1145,12 +1073,13 @@ float pidControl(pidvars* pidName, float error){
   // store previous error
   pidName->eprev = error;
 
-  if (error < abs(pidName->minError))
+  if (error < abs(pidName->minError) )
   {
     pidName->withinError = true;
   }
   else
   {
+    pidName->withinError = false;
     pidName->prevBreakOutTime = millis();
   }
 
@@ -1179,7 +1108,6 @@ float getIRDistance(IRSensor* mIRSensor)
     mIRSensor->isTooClose = false;
     mIRSensor->isInRange = false;
   }
-
   else if (voltage >= mIRSensor->upperVoltage)
   {
     mIRSensor->isTooClose = true;
@@ -1231,4 +1159,161 @@ void printBool(IRSensor mIRSensor)
   BluetoothSerial.println(mIRSensor.isInRange);
   delay(20);
   BluetoothSerial.println();
+}
+
+bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
+{
+  if (xVar.prevT == 0 && xVar.prevT == 0 && aVar.prevT == 0)
+  {
+    xVar.prevT = millis();
+    yVar.prevT = millis();
+    aVar.prevT = millis();
+  }
+
+  if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 50)) // Run straight every 50 ms
+  {
+    return false;
+  }
+
+  updateCoordinates();
+
+  float xError = xDesiredPoisition - xCoordinate;
+  float yError = yDesiredPosition - yCoordinate;
+
+  float angleError;
+  if (currentAngle <= 180) {
+    angleError = currentAngle; // Moving counterclockwise to reach 0
+  } else {
+    angleError = currentAngle - 360; // Moving clockwise to reach 0
+  }
+
+  // BluetoothSerial.print("X-Error: ");
+  // delay(20);
+  // BluetoothSerial.println(xError);
+  // delay(20);
+  // BluetoothSerial.print("Y-Error: ");
+  // delay(20);
+  // BluetoothSerial.println(yError);
+  // delay(20);
+  // BluetoothSerial.print("Angle-error: ");
+  // delay(20);
+  // BluetoothSerial.println(angleError);
+  // delay(20);
+  // BluetoothSerial.println();
+
+  float xVelocity = pidControl(&xVar, xError);
+  float yVelocity = pidControl(&yVar, yError);
+  float aVelocity = pidControl(&aVar, angleError);
+
+  // if (nonBlockingDelay(&mNonBlockingTimerPrint.lastUpdateTime, 2000)) // Run straight every 50 ms
+  // {
+  //   BluetoothSerial.print("X-coordinate ");
+  //   delay(20);
+  //   BluetoothSerial.println(xCoordinate);     delay(20);
+  //   BluetoothSerial.print("Y-coordinate ");    delay(20);
+  //   BluetoothSerial.println(yCoordinate);    delay(20);
+  //   BluetoothSerial.print("X-Leave ");    delay(20);
+  //   BluetoothSerial.println(xVar.withinError);    delay(20);
+  //   BluetoothSerial.print("Y-Leave ");    delay(20);
+  //   BluetoothSerial.println(yVar.withinError);    delay(20);
+  // }
+
+  // BluetoothSerial.print("X-Velocity: ");
+  // delay(20);
+  // BluetoothSerial.println(xVelocity);
+  // delay(20);
+  // BluetoothSerial.print("Y-Velocity: ");
+  // delay(20);
+  // BluetoothSerial.println(yVelocity);
+  // delay(20);
+  // BluetoothSerial.print("Z-Velocity: ");
+  // delay(20);
+  // BluetoothSerial.println(aVelocity);
+  // delay(20);
+
+  inverseKinematics(xVelocity, yVelocity, aVelocity);
+
+  // BluetoothSerial.print("Motor 1: ");
+  // delay(20);
+  // BluetoothSerial.println(angVelArray[0]);
+  // delay(20);
+  // BluetoothSerial.print("Motor 2: ");
+  // delay(20);
+  // BluetoothSerial.println(-1 * angVelArray[1]);
+  // delay(20);
+  // BluetoothSerial.print("Motor 3: ");
+  // delay(20);
+  // BluetoothSerial.println(angVelArray[2]);
+  // delay(20);
+  // BluetoothSerial.print("Motor 4: ");
+  // delay(20);
+  // BluetoothSerial.println(-1 * angVelArray[3]);
+  // delay(20);
+
+  if (wallDirection == 0)
+  {
+    left_font_motor.writeMicroseconds(1500 + angVelArray[0]);
+    right_font_motor.writeMicroseconds(1500 - angVelArray[1]);
+    left_rear_motor.writeMicroseconds(1500 + angVelArray[2]);
+    right_rear_motor.writeMicroseconds(1500 - angVelArray[3]);
+  }
+  else
+  {
+    left_font_motor.writeMicroseconds(1500 - angVelArray[0]);
+    right_font_motor.writeMicroseconds(1500 + angVelArray[1]);
+    left_rear_motor.writeMicroseconds(1500 - angVelArray[2]);
+    right_rear_motor.writeMicroseconds(1500 + angVelArray[3]);
+  }
+
+  angVelArray[0] = 0.0;
+  angVelArray[1] = 0.0;
+  angVelArray[2] = 0.0;
+  angVelArray[3] = 0.0;
+
+  if (xVar.withinError == true && yVar.withinError == true && aVar.withinError == true)
+  {
+    int check = 0;
+
+    // if (nonBlockingDelay(&xVar.breakOutTime, xVar.breakOutTime))
+    // {
+    //   check++;
+    //   BluetoothSerial.println("CHECKED 1");
+    // }
+
+    // if (nonBlockingDelay(&yVar.breakOutTime, yVar.breakOutTime))
+    // {
+    //   check++;
+    //   BluetoothSerial.println("CHECKED 2");
+    // }
+
+    // if (nonBlockingDelay(&aVar.breakOutTime, aVar.breakOutTime))
+    // {
+    //   check++;
+    // }
+
+    // if (check == 2)
+    // {
+    //   return true;
+    // }
+    xVar.withinError = false;
+    yVar.withinError = false;
+    aVar.withinError = false;
+    return true;
+  }
+
+  return false;
+}
+
+void drivePoints(float xCoordinate, float yCoordinate, float xDesired, float yDesired, int n) {
+    // Calculate the step increments for each axis
+    float xStep = (xDesired - xCoordinate) / n;
+    float yStep = (yDesired - yCoordinate) / n;
+
+    // Populate the arrays with the points
+    // Start from 1 to skip the current position and end at n to include the desired position
+    for (int z = 1; z <= n; z++) {
+        xPoint[z - 1] = xCoordinate + xStep * z;
+        yPoint[z - 1] = yCoordinate + yStep * z;
+    }
+        
 }
