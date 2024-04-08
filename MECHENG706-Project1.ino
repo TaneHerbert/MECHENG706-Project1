@@ -64,7 +64,7 @@ enum IRSENSORTYPE
 
 struct nonBlockingTimers
 {
-  unsigned long lastUpdateTimeGyro;
+  unsigned long lastUpdateTime;
 };
 
 struct IRSensor
@@ -114,14 +114,21 @@ float currentAngle = 0;
 float prevAngle = 0;
 int fullTurns = 0;  // Counter for full turns. Positive for clockwise, negative for counterclockwise
 
-float distances[200] = { 0 };
-float angles[200] = { 0 };
+float distances[200] = { 0 }; //reduntant now CAN DELETE
+float currentDist = 0;
+float prevDist = 0;
+float prevprevDist = 0;
+
+float angles[200] = { 0 }; //reduntant now CAN DELETE
 
 float angleCorner[200] = { 0 };
 float cornerDistances[200] = { 0 };
 
 int cornerIndex = 0;
-int indexForDistances = 0;;
+int indexForDistances = 0;
+
+//Boolean for homing function to check the orientation of robot
+bool validOrientation = false;
 
 // This variable will track the cumulative change in angle.
 float cumulativeAngleChange = 0;
@@ -140,9 +147,9 @@ Servo right_font_motor;  // create servo object to control Vex Motor Controller 
 
 SoftwareSerial BluetoothSerial(BLUETOOTH_RX, BLUETOOTH_TX);
 
-nonBlockingTimers mNonBlockingTimers = 
+nonBlockingTimers mNonBlockingTimerGyro = 
 {
-  .lastUpdateTimeGyro = 0,
+  .lastUpdateTime = 0,
 };
 
 static STATE machine_state;
@@ -189,6 +196,28 @@ IRSensor IR_BR =
   .isInRange = true,
   .lowerVoltage = 0.31,
   .upperVoltage = 2.30
+};
+
+IRSensor IR_BL_UNLIMITED = 
+{ 
+  .IR_PIN = A7, 
+  .mSensorType = LONGRANGE,
+  .isTooFar = true,
+  .isTooClose = true,
+  .isInRange = true,
+  .lowerVoltage = 0.37,
+  .upperVoltage = 2.00 
+};
+
+IRSensor IR_FR_UNLIMITED = 
+{ 
+  .IR_PIN = A9, 
+  .mSensorType = LONGRANGE,
+  .isTooFar = true,
+  .isTooClose = true,
+  .isInRange = true,
+  .lowerVoltage = 0.35,
+  .upperVoltage = 2.00
 };
 
 //x coord PID variables
@@ -285,7 +314,7 @@ boolean is_battery_voltage_OK();
 float getIRDistance(IRSensor* IRSensor);
 void printBool(IRSensor mIRSensor);
 
-// Control Sysytem
+// Control System
 void inverseKinematics (float Vx, float Vy, float Az);
 float pidControl(pidvars* pidName, float error);
 
@@ -324,7 +353,7 @@ void loop(void)  //main loop
     case STRAIGHT:
       machine_state = straight();
       break;
-    case RUNNING:  //Lipo Battery Volage OK
+    case RUNNING:  //Lipo Battery Voltage OK
       machine_state = running();
       break;
     case STOPPED:  //Stop of Lipo Battery voltage is too low, to protect Battery
@@ -556,129 +585,43 @@ STATE initialising() {
 
   currentAngle = 0;
 
-  return STRAIGHT;
+  return FINDCORNER;
 }
 
 STATE findCorner() {
 
-  updateCoordinates();
+  /*NEW HOMING CODE*/
 
-/*
-  BluetoothSerial.print("Front Left is too close: ");
-  delay(20);
-  BluetoothSerial.println(IR_FL.isTooClose);
-  delay(20);
-  BluetoothSerial.print("Front Left is too far: ");
-  delay(20);
-  BluetoothSerial.println(IR_FL.isTooFar);
-  delay(20);
-  BluetoothSerial.print("Front Left is in range: ");
-  delay(20);
-  BluetoothSerial.println(IR_FL.isInRange);
-  delay(20);
+  cw();
 
-  //BluetoothSerial.println("Y-Coordinate (measured from IR):");
 
-  //BluetoothSerial.println(yCoordinate);
+  //Turn until it reaches a mininum where both long range sensors are in range
+  if (!validOrientation){
+    if (abs(abs(currentAngle) - abs(prevAngle)) >= 9) // Check orientation every 7 degrees turned
+    {
+      currentDist = HC_SR04_range(); //measure current sonar distance
+      getIRDistance(&IR_BL_UNLIMITED); //measure distances for long range sensors on either side
+      getIRDistance(&IR_FR_UNLIMITED);
 
-  BluetoothSerial.println("***************************************** ");
-  delay(20);
+      //Check if you are at a minimum point
+      if ((prevDist < prevprevDist) && (prevDist < currentDist)){
+        //Check if you are at a horizontal orientation, and not vertical (By checking if both long range sensors arent too far)
+        if ((!IR_BL_UNLIMITED.isTooFar) && (!IR_FR_UNLIMITED.isTooFar)){
+          validOrientation = true;
+          return FINDCORNER;
+        } 
+      }
+      prevprevDist = prevDist;
+      prevDist = currentDist;
+      prevAngle = currentAngle;
+    }
+    return FINDCORNER;
+  }
 
-  BluetoothSerial.print("Front Right is too close: ");
-  delay(20);
-  BluetoothSerial.println(IR_FR.isTooClose);
-  delay(20);
-  BluetoothSerial.print("Front Right is too far: ");
-  delay(20);
-  BluetoothSerial.println(IR_FR.isTooFar);
-  delay(20);
-  BluetoothSerial.print("Front Right is in range: ");
-  delay(20);
-  BluetoothSerial.println(IR_FR.isInRange);delay(20);
+  stop();
+  return RUNNING;
 
-  BluetoothSerial.println("***************************************** ");delay(20);
-
-  BluetoothSerial.print("Back left is too close: ");delay(20);
-  BluetoothSerial.println(IR_BL.isTooClose);delay(20);
-  BluetoothSerial.print("Back left is too far: ");delay(20);
-  BluetoothSerial.println(IR_BL.isTooFar);delay(20);
-  BluetoothSerial.print("Back left is in range: ");delay(20);
-  BluetoothSerial.println(IR_BL.isInRange);delay(20);
-
-  BluetoothSerial.println("***************************************** ");delay(20);
-
-  BluetoothSerial.print("Back Right is too close: ");delay(20);
-  BluetoothSerial.println(IR_BR.isTooClose);delay(20);
-  BluetoothSerial.print("Back Right is too far: ");delay(20);
-  BluetoothSerial.println(IR_BR.isTooFar);delay(20);
-  BluetoothSerial.print("Back Right is in range: ");delay(20);
-  BluetoothSerial.println(IR_BR.isInRange);delay(20);
-
-  BluetoothSerial.println("***************************************** ");delay(20);
-  */
-
-  BluetoothSerial.println("Y-Coordinate (measured from IR):");
-  delay(20);
-  BluetoothSerial.println(yCoordinate);
-  delay(20);
-  BluetoothSerial.println("X-Coordinate (measured from SONAR):");
-  delay(20);
-  BluetoothSerial.println(xCoordinate);
-  delay(20);
-  BluetoothSerial.println();
-
-  delay(4000);
-
-  //float distance;
-
-  // distance = getIRDistance(&IR_FL);
-  // BluetoothSerial.print("Front Left: ");
-  // BluetoothSerial.println(distance);
-
-  // delay(2000);
-
-  // distance = getIRDistance(&IR_FR);
-  // BluetoothSerial.print("Front Right: ");
-  // BluetoothSerial.println(distance);
-
-  // delay(2000);
-
-  // distance = getIRDistance(&IR_BL);
-  // BluetoothSerial.print("Back Left: ");
-  // BluetoothSerial.println(distance);
-
-  // delay(2000);
-
-  // distance = getIRDistance(&IR_BR);
-  // BluetoothSerial.print("Back Right: ");
-  // BluetoothSerial.println(distance);
-
-  // delay(2000);
-
-  // delay(10000);delay(20);
-  // BluetoothSerial.println();delay(20);
-
-  return FINDCORNER;
-
-  /** HOMING STUFF BELOW (PLEASE LEAVE) **/
-
-  // cw();
-
-  // // Continue to turn until its done 1 turn;
-  // if (abs(fullTurns) < 1)
-  // {
-  //   if (abs(abs(currentAngle) - abs(prevAngle)) >= 3) // Take a distance measurement for every 3 degrees turned
-  //   {
-  //     distances[indexForDistances] = HC_SR04_range();
-  //     angles[indexForDistances] = currentAngle;
-
-  //     prevAngle = currentAngle;
-  //     indexForDistances++;
-  //   }
-  //   return FINDCORNER;
-  // }
-
-  // stop();
+  /** PREVIOUS HOMING CODE BELOW **/
 
   // // Analyze the collected distances to find corners
   // for (int i = 1; i < indexForDistances - 1; i++) // Start from 1 and end at 78 to avoid out of bound indexes
@@ -826,7 +769,22 @@ STATE straight()
 }
 
 STATE running() {
+  BluetoothSerial.print("Current Distance: ");
+  delay(20);
+  BluetoothSerial.println(currentDist);
+  delay(20);
+  BluetoothSerial.print("Previous Distance: ");
+  delay(20);
+  BluetoothSerial.println(prevDist);
+  delay(20);
+  BluetoothSerial.print("Prev Previous Distance: ");
+  delay(20);
+  BluetoothSerial.println(prevprevDist);
+  delay(20);
+  BluetoothSerial.println();
+  
   fast_flash_double_LED_builtin();
+  delay(100000);
 
   return RUNNING;
 }
@@ -910,7 +868,7 @@ void GyroSetup()
 // TODO: ALWAYS THINKS T = 100 when in fact could be slightly above or below. Need to get actual difference from non blocking delay
 void getCurrentAngle() 
 {
-  if (!nonBlockingDelay(&mNonBlockingTimers.lastUpdateTimeGyro, T))
+  if (!nonBlockingDelay(&mNonBlockingTimerGyro.lastUpdateTime, T))
   {
     return;
   }
