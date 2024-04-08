@@ -98,6 +98,7 @@ struct pidvars
 float xCoordinate;
 float yCoordinate;
 int wallDirection; // (0 = starts in TOP LEFT/BOTTOM RIGHT), (1 = starts in TOP RIGHT/BOTTOM LEFT)
+int robotDirection; // (0 = sonar facing wall to start), (1 = sonar facing away from wall to start) 
 
 // Time of one loop, 0.07 s (GYRO)
 int T = 70;
@@ -920,6 +921,8 @@ void updateCoordinates()
     * Hypothetically if alligned correctly, the 2 long range IR sensors should add to 1200mm once in the middle
     */
 
+  bool dontUpdate = false;
+
   float backLeftDistance = getIRDistance(&IR_BL);
   float backRightDistance = getIRDistance(&IR_BR);
   float frontRightDistance = getIRDistance(&IR_FR);
@@ -1013,7 +1016,10 @@ void updateCoordinates()
 
     else{
       //dont update the coordinates.
+      dontUpdate = true;
     }
+
+  
   }
 
   //FOR WHEN NO CASES WORKING
@@ -1031,29 +1037,19 @@ void updateCoordinates()
     //dont update y coordinate.
   }
 
-  xCoordinate = 1200 - ((10 * HC_SR04_range()) + 122);
+  if (dontUpdate==false){
+    xCoordinate = 2000 - ((10 * HC_SR04_range()) + 122);
+    if (robotDirection==false){
+      xCoordinate = ((10 * HC_SR04_range()) + 122);
+      yCoordinate = 
+    }
+  }
+
+  if (robotDirection==false)(dontUpdate==false){ // This is our original implementation (robot facing away from wall)
+    
+  }
 }
 // ----------------------Control System------------------------
-
-// Call this function once at the beginning after robot is alligned to define what side starts closer to the wall
-void setWallDirection()
-{
-  // If left side starts closer to the wall, we are either in TOP LEFT or BOTTOM RIGHT
-  // If right side starts closer to the wall, we are either in TOP RIGHT of BOTTOM LEFT
-  (void)getIRDistance(&IR_BR);
-  (void)getIRDistance(&IR_FL);
-  
-  // If left side closer to wall, set wallDirection to 0
-  if ((IR_BL.isTooFar == false) || (IR_FL.isTooFar == false)){
-    wallDirection = 0;
-    // BluetoothSerial.println("Starting point: Top Left or Bottom Right");
-  }
-  // Else, right side is closer to wall therefore set wallDirection to 1
-  else{
-    wallDirection = 1;
-    // BluetoothSerial.println("Starting point: Top Right or Bottom Left");
-  }
-}
 
 //Function for inverse kinematics. Input velocities, output angular velocity of each wheel.
 void inverseKinematics (float Vx, float Vy, float Az){
@@ -1172,4 +1168,37 @@ void printBool(IRSensor mIRSensor)
   BluetoothSerial.println(mIRSensor.isInRange);
   delay(20);
   BluetoothSerial.println();
+}
+
+
+void driveToCorner(){
+
+  float backLeftDistance = getIRDistance(&IR_BL);
+  float backRightDistance = getIRDistance(&IR_BR);
+  float frontRightDistance = getIRDistance(&IR_FR);
+  float frontLeftDistance = getIRDistance(&IR_FL);
+
+  drive(x,y);
+  drive()
+
+}
+
+// Call this function once at the beginning after robot is alligned to define what side starts closer to the wall
+void setWallDirection()
+{
+  // If left side starts closer to the wall, we are either in TOP LEFT or BOTTOM RIGHT
+  // If right side starts closer to the wall, we are either in TOP RIGHT of BOTTOM LEFT
+  (void)getIRDistance(&IR_BR);
+  (void)getIRDistance(&IR_FL);
+  
+  // If left side closer to wall, set wallDirection to 0
+  if ((IR_BL.isTooFar == false) || (IR_FL.isTooFar == false)){
+    wallDirection = 0;
+    // BluetoothSerial.println("Starting point: Top Left or Bottom Right");
+  }
+  // Else, right side is closer to wall therefore set wallDirection to 1
+  else{
+    wallDirection = 1;
+    // BluetoothSerial.println("Starting point: Top Right or Bottom Left");
+  }
 }
