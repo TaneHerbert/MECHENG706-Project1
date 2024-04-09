@@ -51,6 +51,7 @@ enum STATE
 {
   INITIALISING,
   ORIENTATEROBOT,
+  ALIGNATWALL,
   DRIVETOCORNER,
   DRIVEPATHWAY,
   RUNNING,
@@ -67,7 +68,8 @@ enum PIDCONTROL
 {
   XCONTROL,
   YCONTROL,
-  ACONTROL
+  ACONTROL,
+  ALIGNCONTROL
 };
 
 struct nonBlockingTimers
@@ -112,6 +114,7 @@ struct pidvars
 float xCoordinate;
 float yCoordinate;
 int wallDirection; // (0 = starts in TOP LEFT/BOTTOM RIGHT), (1 = starts in TOP RIGHT/BOTTOM LEFT)
+int robotDirection; // (0 = sonar facing wall to start), (1 = sonar facing away from wall to start)
 
 // Time of one loop, 0.07 s (GYRO)
 int T = 100;
@@ -285,6 +288,23 @@ pidvars aVar =
   .minError = 1.0,
 };
 
+//Alignment PID variables
+pidvars alignVar = 
+{
+  .mPIDCONTROL = ALIGNCONTROL,
+  .eprev = 0,
+  .eintegral = 0,
+  .integralLimit = 1000, // ????
+  .kp = 2,
+  .ki = 0.0, // 0.343
+  .kd = 0.0, // 1.21
+  .prevT = 0, 
+  .breakOutTime = 500,
+  .prevBreakOutTime = 0,
+  .withinError = false,
+  .minError = 20,
+};
+
 //Initialise matrix for inverse kinematics:
 float invKMatrix[4][3] =  
 { 
@@ -357,6 +377,7 @@ STATE initialising();
 STATE running();
 STATE stopped();
 STATE orientateRobot();
+STATE alignAtWall();
 STATE driveToCorner();
 STATE drivepathway();
 
@@ -405,6 +426,9 @@ void loop(void)  //main loop
       break;
     case ORIENTATEROBOT:
       machine_state = orientateRobot();
+      break;
+    case ALIGNATWALL:
+      machine_state = alignAtWall();
       break;
     case DRIVETOCORNER:
       machine_state = driveToCorner();
@@ -648,13 +672,14 @@ STATE initialising() {
 }
 
 STATE orientateRobot() {
-
+  
   /*NEW HOMING CODE*/
+  speed_val = 90;
   cw();
 
   //Turn until it reaches a mininum where both long range sensors are in range
   if (!validOrientation){
-    if (abs(abs(currentAngle) - abs(prevAngle)) >= 9) // Check orientation every 9 degrees turned
+    if (abs(abs(currentAngle) - abs(prevAngle)) >= 11) // Check orientation every 9 degrees turned
     {
       currentDist = HC_SR04_range(); //measure current sonar distance
       getIRDistance(&IR_BL_UNLIMITED); //measure distances for long range sensors on either side
@@ -676,16 +701,85 @@ STATE orientateRobot() {
   }
 
   stop();
+<<<<<<< HEAD
 
   return DRIVETOCORNER;
+=======
+  return ALIGNATWALL;
+
+>>>>>>> main
 }
 
-STATE driveToCorner(){
-  //Firstly rotate back from the overshoot
-  if (abs(abs(currentAngle) - abs(prevAngle)) <= 9){
+STATE alignAtWall(){
+
+  //Drive backwards
+  speed_val = 300;
+  reverse();
+
+  //Measure distance
+  currentDist = HC_SR04_range() * 10;
+
+  if (nonBlockingDelay(&mNonBlockingPrint.lastUpdateTime, 2000))
+  {
+    BluetoothSerial.println(currentDist);
+  }
+  delay(100);
+
+  if (currentDist < 1750){
+    //if has not reached wall, keep driving forward
+    return ALIGNATWALL;
+  }
+  else{
+    //Wait 2 seconds and then stop
+    delay(500);
+    stop();
     return DRIVETOCORNER;
   }
-  return STOPPED;
+
+}
+
+STATE driveToCorner()
+{
+    if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 50)) // Run straight every 50 ms
+  {
+    return DRIVETOCORNER;
+  }
+
+  float yDesiredPosition = 500;  // SHORT DISTANCE
+
+  updateCoordinates();
+
+  float yError = yDesiredPosition - yCoordinate;
+
+  float yVelocity = pidControl(&alignVar, yError);
+  inverseKinematics(-100, yVelocity, 0);
+
+  left_font_motor.writeMicroseconds(1500 + angVelArray[0]);
+  right_font_motor.writeMicroseconds(1500 - angVelArray[1]);
+  left_rear_motor.writeMicroseconds(1500 + angVelArray[2]);
+  right_rear_motor.writeMicroseconds(1500 - angVelArray[3]);
+
+  angVelArray[0] = 0.0;
+  angVelArray[1] = 0.0;
+  angVelArray[2] = 0.0;
+  angVelArray[3] = 0.0;
+
+  if (yVar.withinError == true)
+  {
+    int check = 0;
+
+    if (nonBlockingDelay(&yVar.breakOutTime, yVar.breakOutTime))
+    {
+      check++;
+    }
+
+    if (check == 1)
+    {
+      return STOPPED;
+    }
+  }
+
+  return DRIVETOCORNER;
 }
 
 STATE drivepathway()
@@ -900,6 +994,9 @@ void updateCoordinates()
     * Hypothetically if alligned correctly, the 2 long range IR sensors should add to 1200mm once in the middle
     */
 
+  wallDirection = 0;
+  bool dontUpdate = false;
+
   float backLeftDistance = getIRDistance(&IR_BL);
   float backRightDistance = getIRDistance(&IR_BR);
   float frontRightDistance = getIRDistance(&IR_FR);
@@ -993,6 +1090,7 @@ void updateCoordinates()
 
     else{
       //dont update the coordinates.
+      dontUpdate = true;
     }
   }
 
@@ -1011,7 +1109,13 @@ void updateCoordinates()
     //dont update y coordinate.
   }
 
-  xCoordinate = 2000 - ((10 * HC_SR04_range()) + 122);
+  if (dontUpdate==false){
+    xCoordinate = 2000 - ((10 * HC_SR04_range()) + 122);
+    if (robotDirection==false){ // the robot faces the wall to start meaning we need to adjust coordinates to be inversed.
+      xCoordinate = 2000 - xCoordinate;
+      yCoordinate = 1200 - yCoordinate;
+    }
+  }
 }
 // ----------------------Control System------------------------
 
@@ -1032,6 +1136,14 @@ void setWallDirection()
   else{
     wallDirection = 1;
     // BluetoothSerial.println("Starting point: Top Right or Bottom Left");
+  }
+
+  float sonarDistance = ((10 * HC_SR04_range()) + 122);
+  if (sonarDistance < 600){ // robot is facing towards wall (600 is abitrary distance) basically 600 < 1000 (halfway point)
+    robotDirection = 0;
+  }
+  else {
+    robotDirection = 1;
   }
 }
 
