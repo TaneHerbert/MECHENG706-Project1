@@ -114,14 +114,14 @@ float yCoordinate;
 int wallDirection; // (0 = starts in TOP LEFT/BOTTOM RIGHT), (1 = starts in TOP RIGHT/BOTTOM LEFT)
 
 // Time of one loop, 0.07 s (GYRO)
-int T = 100;
+int T = 50;
 
 // Voltage when gyro is initialised
 float gyroZeroVoltage = 0;
 
 float gyroSupplyVoltage = 5;   // supply voltage for gyro
 float gyroSensitivity = 0.007; // gyro sensitivity unit is (mv/degree/second) get from datasheet
-float rotationThreshold = 3; // because of gyro drifting, defining rotation angular velocity less than this value will be ignored
+float rotationThreshold = 3.0; // because of gyro drifting, defining rotation angular velocity less than this value will be ignored
 
 // current angle calculated by angular velocity integral on
 float currentAngle = 0;
@@ -240,12 +240,12 @@ pidvars xVar =
   .mPIDCONTROL = XCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .integralLimit = 500,
-  .kp = 1.0,
-  .ki = 0.2, // 0.154
-  .kd = 0.02,  // 1.02
+  .integralLimit = 200,
+  .kp = 0.5,
+  .ki = 0.25, // 0.154
+  .kd = 0.01,  // 1.02
   .prevT = 0,
-  .breakOutTime = 20,
+  .breakOutTime = 50,
   .prevBreakOutTime = 0,
   .withinError = false,
   .minError = 30,
@@ -257,12 +257,12 @@ pidvars yVar =
   .mPIDCONTROL = YCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .integralLimit = 800,
-  .kp = 4.5,
-  .ki = 1.5, // 0.205
-  .kd = 0.0,  // 1.04
+  .integralLimit = 500,
+  .kp = 1.4,
+  .ki = 0.5, // 0.205
+  .kd = 0.01,  // 1.04
   .prevT = 0,
-  .breakOutTime = 20,
+  .breakOutTime = 50,
   .prevBreakOutTime = 0,
   .withinError = false,
   .minError = 30,
@@ -274,15 +274,15 @@ pidvars aVar =
   .mPIDCONTROL = ACONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .integralLimit = 400, // ????
-  .kp = 0.32,
-  .ki = 0.2, // 0.343
-  .kd = 0.012, // 1.21
+  .integralLimit = 500,
+  .kp = 0.28,
+  .ki = 0.20, // 0.343
+  .kd = 0.007, // 1.21
   .prevT = 0, 
-  .breakOutTime = 20,
+  .breakOutTime = 50,
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 1,
+  .minError = 1.0,
 };
 
 //Initialise matrix for inverse kinematics:
@@ -300,10 +300,10 @@ float angVelArray[4];
 int pathStep = 0;
 int segmentStep = 0;
 
-float xCoordinateDes[20] = {150, 1750, 1750, 150, 150, 1750, 1750, 150, 150, 1750, 1750, 150, 150, 1750, 1750, 150, 150, 1750, 1750, 150};
+float xCoordinateDes[20] = {250, 1750, 1750, 250, 250, 1750, 1750, 250, 250, 1750, 1750, 250, 250, 1750, 1750, 250, 250, 1750, 1750, 250};
 float yCoordinateDes[20] = {150, 150, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1050, 1050};
 
-float segmentArray[21] = {1,10,5,10,5,10,5,10,5,10,5,10,5,10,5,10,5,10,5,10,99999}; // tells us how many segments we should break each path step into
+float segmentArray[21] = {1,10,2,10,2,10,2,10,2,10,2,10,2,10,2,10,2,10,2,10,99999}; // tells us how many segments we should break each path step into
 
 float xDesired = 150;
 float yDesired = 150;
@@ -708,6 +708,11 @@ STATE drivepathway()
     BluetoothSerial.print("Y-Position ");
     BluetoothSerial.println(yDesired);
     BluetoothSerial.println();
+
+    if (pathStep > 20)
+    {
+      return STOPPED;
+    }
   }
 
   return DRIVEPATHWAY;
@@ -848,6 +853,11 @@ void getCurrentAngle()
     currentAngle += 360;
   } else if (currentAngle > 359) {
     currentAngle -= 360;
+  }
+
+  if (nonBlockingDelay(&mNonBlockingTimerPrint.lastUpdateTime, 2000)) // Run straight every 50 ms
+  {
+    BluetoothSerial.println(currentAngle);  
   }
 
   // Check for full turns
