@@ -164,7 +164,7 @@ nonBlockingTimers mNonBlockingTimerPID =
   .lastUpdateTime = 0,
 };
 
-nonBlockingTimers mNonBlockingTimerPrint = 
+nonBlockingTimers mNonBlockingPrint = 
 {
   .lastUpdateTime = 0,
 };
@@ -294,12 +294,12 @@ pidvars alignVar =
   .mPIDCONTROL = ALIGNCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .integralLimit = 1000, // ????
-  .kp = 2,
-  .ki = 0.0, // 0.343
+  .integralLimit = 200, // ????
+  .kp = 2.6,
+  .ki = 2.0, // 0.343
   .kd = 0.0, // 1.21
   .prevT = 0, 
-  .breakOutTime = 500,
+  .breakOutTime = 100,
   .prevBreakOutTime = 0,
   .withinError = false,
   .minError = 20,
@@ -664,11 +664,11 @@ STATE initialising() {
 
   enable_motors();
   GyroSetup();  //Set up starting voltage for gyro
-  setWallDirection();
+  // setWallDirection();
 
   currentAngle = 0;
 
-  return DRIVEPATHWAY;
+  return ORIENTATEROBOT;
 }
 
 STATE orientateRobot() {
@@ -701,13 +701,8 @@ STATE orientateRobot() {
   }
 
   stop();
-<<<<<<< HEAD
-
-  return DRIVETOCORNER;
-=======
   return ALIGNATWALL;
 
->>>>>>> main
 }
 
 STATE alignAtWall(){
@@ -740,19 +735,37 @@ STATE alignAtWall(){
 
 STATE driveToCorner()
 {
-    if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 50)) // Run straight every 50 ms
+  if (alignVar.prevT == 0)
+  {
+    alignVar.prevT = millis();
+  }
+
+  if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 50)) // Run straight every 50 ms
   {
     return DRIVETOCORNER;
   }
 
-  float yDesiredPosition = 500;  // SHORT DISTANCE
+  float yDesiredPosition = 150;  // SHORT DISTANCE
 
   updateCoordinates();
+
+  // if (nonBlockingDelay(&mNonBlockingPrint.lastUpdateTime, 1000)) // Run straight every 50 ms
+  // {
+  //   // BluetoothSerial.println(yCoordinate);
+  //   BluetoothSerial.println("BACK LEFT");
+  //   printBool(IR_BL);
+  //   BluetoothSerial.println("BACK RIGHT");
+  //   printBool(IR_BR);
+  //   BluetoothSerial.println("FRONT RIGHT");
+  //   printBool(IR_FR);
+  //   BluetoothSerial.println("FRONT LEFT");
+  //   printBool(IR_FL);
+  // }
 
   float yError = yDesiredPosition - yCoordinate;
 
   float yVelocity = pidControl(&alignVar, yError);
-  inverseKinematics(-100, yVelocity, 0);
+  inverseKinematics(-380, yVelocity, 0);
 
   left_font_motor.writeMicroseconds(1500 + angVelArray[0]);
   right_font_motor.writeMicroseconds(1500 - angVelArray[1]);
@@ -764,18 +777,22 @@ STATE driveToCorner()
   angVelArray[2] = 0.0;
   angVelArray[3] = 0.0;
 
-  if (yVar.withinError == true)
+  if (alignVar.withinError == true)
   {
     int check = 0;
 
-    if (nonBlockingDelay(&yVar.breakOutTime, yVar.breakOutTime))
+    if (breakOutTimerPID(&alignVar.breakOutTime, alignVar.breakOutTime))
     {
       check++;
     }
 
     if (check == 1)
     {
-      return STOPPED;
+      alignVar.eprev = 0;
+      alignVar.eintegral = 0;
+      stop();
+      currentAngle = 0;
+      return DRIVEPATHWAY;
     }
   }
 
@@ -841,6 +858,9 @@ STATE running() {
 }
 
 STATE stopped() {
+  reverse();
+  delay(100);
+  
   stop();
   disable_motors();
   slow_flash_LED_builtin();
@@ -965,10 +985,10 @@ void getCurrentAngle()
     currentAngle -= 360;
   }
 
-  if (nonBlockingDelay(&mNonBlockingTimerPrint.lastUpdateTime, 2000)) // Run straight every 50 ms
-  {
-    BluetoothSerial.println(currentAngle);  
-  }
+  // if (nonBlockingDelay(&mNonBlockingPrint.lastUpdateTime, 2000)) // Run straight every 50 ms
+  // {
+  //   BluetoothSerial.println(currentAngle);  
+  // }
 
   // Check for full turns
   if (cumulativeAngleChange >= 360) {
@@ -1004,88 +1024,45 @@ void updateCoordinates()
 
   // FOR LEFT SIDE TOO CLOSE LESS THAN 40mm
   if ((IR_FL.isTooClose == true) && (IR_BL.isTooClose == true) && (IR_FR.isTooFar == true) && (IR_BR.isTooFar == true)){
-    if (wallDirection == 0){ // left side closer to start
-      yCoordinate = 72.0;
-    }
-    else { // right side closer to finish
-      yCoordinate = (1200.0 - 72.0);
-  }
+    yCoordinate = 72.0;
   }
   //FOR LEFT SIDE  VERY CLOSE, LESS THAN 100mm
   else if ((IR_FL.isInRange) && (IR_BL.isTooClose) && (IR_FR.isTooFar) && (IR_BR.isTooFar)){
-    if (wallDirection == 0){ // left side closer to start
-      yCoordinate = (frontLeftDistance + 72.0);
-    }
-    else { // right side closer to finish
-      yCoordinate = (1200.0 - 72.0 - frontLeftDistance);
-  }
+    yCoordinate = (frontLeftDistance + 72.0);
   }
 
   //FOR LEFT SIDE MEDIUM CLOSE, MORE THAN 100mm, LESS THAN 290mm
   else if ((IR_FL.isInRange) && (IR_BL.isInRange) && (IR_FR.isTooFar) && (IR_BR.isTooFar)){
-    //CAN ADD FUNCTIONALITY TO AVERAGE BOTH SENSORS HERE IF NEED BE.
-    if (wallDirection == 0){ // left side closer to start
-      yCoordinate = (frontLeftDistance + 72.0);
-    }
-    else { // right side closer to finish
-      yCoordinate = (1200.0 - 72.0 - frontLeftDistance);
-  }
+    yCoordinate = (frontLeftDistance + 72.0);
   }
 
   //FOR RIGHT SIDE MEDIUM CLOSE, MORE THAN 100mm, LESS THAN 290mm
   else if ((IR_FR.isInRange) && (IR_BR.isInRange) && (IR_FL.isTooFar) && (IR_BL.isTooFar)){
-    //CAN ADD FUNCTIONALITY TO AVERAGE BOTH SENSORS HERE IF NEED BE.
-    if (wallDirection == 1){ // right side closer to start
-      yCoordinate = (backRightDistance + 72.0);
-    }
-    else { // left side closer to finish
-      yCoordinate = (1200.0 - 72.0 - backRightDistance);
-  }
+    yCoordinate = (1200.0 - 72.0 - backRightDistance);
   }
 
   //FOR RIGHT SIDE VERY CLOSE, LESS THAN 100mm
   else if ((IR_FR.isTooClose) && (IR_BR.isInRange) && (IR_FL.isTooFar) && (IR_BL.isTooFar)){
     //CAN ADD FUNCTIONALITY TO AVERAGE BOTH SENSORS HERE IF NEED BE.
-    if (wallDirection == 1){ // right side closer to start
-      yCoordinate = (backRightDistance + 72.0);
-    }
-    else { // left side closer to finish
-      yCoordinate = (1200.0 - 72.0 - backRightDistance);
-  }
+    yCoordinate = (1200.0 - 72.0 - backRightDistance);
   }
 
   //FOR RIGHT SIDE TOO CLOSE, LESS THAN 40mm
   else if ((IR_FR.isTooClose) && (IR_BR.isTooClose) && (IR_FL.isTooFar) && (IR_BL.isTooFar)){
-    //CAN ADD FUNCTIONALITY TO AVERAGE BOTH SENSORS HERE IF NEED BE.
-    if (wallDirection == 1){ // right side closer to start
-      yCoordinate = 72.0;
-    }
-    else { // left side closer to finish
-      yCoordinate = 1200.0 - 72.0;
-  }
+    yCoordinate = 1200.0 - 72.0;
   } 
 
     //FOR IN MIDDLE, MORE THAN 290mm on both sides
   else if ((IR_FL.isTooFar) && (IR_FR.isInRange || IR_BL.isInRange) && (IR_BR.isTooFar)){
     if (frontRightDistance <= 540){
       //use frontright sensor only
-      if (wallDirection == 1){ // right side closer to start
-        yCoordinate = (frontRightDistance + 72.0);
-      }
-      else { // left side closer to finish
-        yCoordinate = (1200.0 - frontRightDistance - 72.0);
-      }
+      yCoordinate = (1200.0 - frontRightDistance - 72.0);
     }
 
     //If its closer to the left side
     else if (backLeftDistance <= 540){
       //use backleft sensor only
-      if (wallDirection == 0){ // left side closer to start
-        yCoordinate = (backLeftDistance + 72.0);
-      }
-      else { // right side closer to finish
-        yCoordinate = (1200.0 - backLeftDistance - 72.0);
-      }
+      yCoordinate = (backLeftDistance + 72.0);
     }    
 
     else{
@@ -1109,13 +1086,7 @@ void updateCoordinates()
     //dont update y coordinate.
   }
 
-  if (dontUpdate==false){
-    xCoordinate = 2000 - ((10 * HC_SR04_range()) + 122);
-    if (robotDirection==false){ // the robot faces the wall to start meaning we need to adjust coordinates to be inversed.
-      xCoordinate = 2000 - xCoordinate;
-      yCoordinate = 1200 - yCoordinate;
-    }
-  }
+  xCoordinate = 2000 - ((10 * HC_SR04_range()) + 122);
 }
 // ----------------------Control System------------------------
 
@@ -1303,7 +1274,7 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
     aVar.prevT = millis();
   }
 
-  if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 20)) // Run straight every 50 ms
+  if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 80)) // Run straight every 50 ms
   {
     return false;
   }
@@ -1338,7 +1309,7 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
   float yVelocity = pidControl(&yVar, yError);
   float aVelocity = pidControl(&aVar, angleError);
 
-  // if (nonBlockingDelay(&mNonBlockingTimerPrint.lastUpdateTime, 2000)) // Run straight every 50 ms
+  // if (nonBlockingDelay(&mNonBlockingPrint.lastUpdateTime, 2000)) // Run straight every 50 ms
   // {
   //   BluetoothSerial.print("X-coordinate ");
   //   delay(20);
