@@ -114,13 +114,13 @@ float yCoordinate;
 int wallDirection; // (0 = starts in TOP LEFT/BOTTOM RIGHT), (1 = starts in TOP RIGHT/BOTTOM LEFT)
 
 // Time of one loop, 0.07 s (GYRO)
-int T = 50;
+int T = 100;
 
 // Voltage when gyro is initialised
 float gyroZeroVoltage = 0;
 
 float gyroSupplyVoltage = 5;   // supply voltage for gyro
-float gyroSensitivity = 0.007; // gyro sensitivity unit is (mv/degree/second) get from datasheet
+float gyroSensitivity = 0.005; // gyro sensitivity unit is (mv/degree/second) get from datasheet
 float rotationThreshold = 3.0; // because of gyro drifting, defining rotation angular velocity less than this value will be ignored
 
 // current angle calculated by angular velocity integral on
@@ -241,14 +241,14 @@ pidvars xVar =
   .eprev = 0,
   .eintegral = 0,
   .integralLimit = 200,
-  .kp = 0.5,
-  .ki = 0.25, // 0.154
-  .kd = 0.01,  // 1.02
+  .kp = 1.8,
+  .ki = 0.154, // 0.154
+  .kd = 0.0,  // 1.02
   .prevT = 0,
   .breakOutTime = 50,
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 30,
+  .minError = 60,
 };
 
 //y coord PID variables
@@ -257,10 +257,10 @@ pidvars yVar =
   .mPIDCONTROL = YCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .integralLimit = 500,
-  .kp = 1.4,
-  .ki = 0.5, // 0.205
-  .kd = 0.01,  // 1.04
+  .integralLimit = 300,
+  .kp = 3.5,
+  .ki = 0.205, // 0.205
+  .kd = 0.0,  // 1.04
   .prevT = 0,
   .breakOutTime = 50,
   .prevBreakOutTime = 0,
@@ -274,12 +274,12 @@ pidvars aVar =
   .mPIDCONTROL = ACONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .integralLimit = 500,
-  .kp = 0.28,
-  .ki = 0.20, // 0.343
-  .kd = 0.007, // 1.21
+  .integralLimit = 100,
+  .kp = 0.3,
+  .ki = 0.01, // 0.343
+  .kd = 0.0, // 1.21
   .prevT = 0, 
-  .breakOutTime = 50,
+  .breakOutTime = 20,
   .prevBreakOutTime = 0,
   .withinError = false,
   .minError = 1.0,
@@ -303,13 +303,19 @@ int segmentStep = 0;
 float xCoordinateDes[20] = {250, 1750, 1750, 250, 250, 1750, 1750, 250, 250, 1750, 1750, 250, 250, 1750, 1750, 250, 250, 1750, 1750, 250};
 float yCoordinateDes[20] = {150, 150, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1050, 1050};
 
-float segmentArray[21] = {1,10,2,10,2,10,2,10,2,10,2,10,2,10,2,10,2,10,2,10,99999}; // tells us how many segments we should break each path step into
+float segmentArray[21] = {1,10,1,10,1,10,1,10,1,10,1,10,1,10,1,10,1,10,1,10,99999}; // tells us how many segments we should break each path step into
+
+int offset[20] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 2, 0 };
+
+int offsetTotal = 0;
 
 float xDesired = 150;
 float yDesired = 150;
 
 float xPoint[100]; // X points to travel along the line, adjust the size as needed
 float yPoint[100]; // Y points to travel along the line, adjust the size as needed
+
+bool runOnce = false;
 
 /**
  * Private Decleration 
@@ -691,6 +697,7 @@ STATE drivepathway()
 
     if (segmentStep >= segmentArray[pathStep]){ // The robot has reached the end of the step and needs to move to the next point path point
       segmentStep = 0; // reset segment step
+      runOnce = false;
       pathStep++;
 
       // There will be 2 coordinate paths that the robot will take depending on direction it STARTTED (robotDirection)
@@ -709,7 +716,7 @@ STATE drivepathway()
     BluetoothSerial.println(yDesired);
     BluetoothSerial.println();
 
-    if (pathStep > 20)
+    if (pathStep >= 20)
     {
       return STOPPED;
     }
@@ -846,6 +853,15 @@ void getCurrentAngle()
 
     // Accumulate the angle change
     cumulativeAngleChange += angleChange;
+  }
+
+  if (runOnce != true)
+  {
+    offsetTotal += offset[pathStep];
+    runOnce = true;
+    BluetoothSerial.println("ADDED ERROR");
+    BluetoothSerial.println(offset[pathStep]);
+    currentAngle = currentAngle + offsetTotal;
   }
 
   // keep the angle between 0-360
@@ -1051,7 +1067,7 @@ void inverseKinematics (float Vx, float Vy, float Az)
 float pidControl(pidvars* pidName, float error){
   // time difference
   long currT = micros();
-  // long et = currT - pidName->prevT;
+
   float deltaT = ((float)(currT - pidName->prevT))/1.0e6;
   pidName->prevT = currT;
 
@@ -1296,6 +1312,17 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
 
     if (check == 3)
     {
+      aVar.eprev = 0;
+      xVar.eprev = 0;
+      yVar.eprev = 0;
+
+      aVar.eintegral = 0;
+      xVar.eintegral = 0;
+      yVar.eintegral = 0;
+
+      aVar.prevT = 0;
+      xVar.prevT = 0;
+      yVar.prevT = 0;
       return true;
     }
   }
