@@ -113,7 +113,6 @@ struct pidvars
 // Global Coordinate based variables:
 float xCoordinate;
 float yCoordinate;
-int wallDirection; // (0 = starts in TOP LEFT/BOTTOM RIGHT), (1 = starts in TOP RIGHT/BOTTOM LEFT)
 int robotDirection; // (0 = sonar facing wall to start), (1 = sonar facing away from wall to start)
 
 // Time of one loop, 0.07 s (GYRO)
@@ -165,6 +164,11 @@ nonBlockingTimers mNonBlockingTimerPID =
 };
 
 nonBlockingTimers mNonBlockingPrint = 
+{
+  .lastUpdateTime = 0,
+};
+
+nonBlockingTimers mNonBlockingSonar = 
 {
   .lastUpdateTime = 0,
 };
@@ -325,7 +329,7 @@ float yCoordinateDes[20] = {150, 150, 250, 250, 350, 350, 450, 450, 550, 550, 65
 
 float segmentArray[21] = {1,10,1,10,1,10,1,10,1,10,1,10,1,10,1,10,1,10,1,10,99999}; // tells us how many segments we should break each path step into
 
-int offset[20] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 2, 0 };
+int offset[20] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 int offsetTotal = 0;
 
@@ -370,11 +374,9 @@ void getCurrentAngle();
 
 // Coordinate System
 void updateCoordinates();
-void setWallDirection();
 
 // State machine
 STATE initialising();
-STATE running();
 STATE stopped();
 STATE orientateRobot();
 STATE alignAtWall();
@@ -436,10 +438,7 @@ void loop(void)  //main loop
     case DRIVEPATHWAY:
       machine_state = drivepathway();
       break;
-    case RUNNING:  //Lipo Battery Voltage OK
-      machine_state = running();
-      break;
-    case STOPPED:  //Stop of Lipo Battery voltage is too low, to protect Battery
+    case STOPPED:
       machine_state = stopped();
       break;
   };
@@ -539,6 +538,11 @@ void strafe_right()
 // ----------------------Sonar------------------------
 float HC_SR04_range()
 {
+  if (!nonBlockingDelay(&mNonBlockingSonar.lastUpdateTime, 50))
+  {
+    return;
+  }
+
   unsigned long t1;
   unsigned long t2;
   unsigned long pulse_width;
@@ -664,7 +668,6 @@ STATE initialising() {
 
   enable_motors();
   GyroSetup();  //Set up starting voltage for gyro
-  // setWallDirection();
 
   currentAngle = 0;
 
@@ -713,12 +716,6 @@ STATE alignAtWall(){
 
   //Measure distance
   currentDist = HC_SR04_range() * 10;
-
-  if (nonBlockingDelay(&mNonBlockingPrint.lastUpdateTime, 2000))
-  {
-    BluetoothSerial.println(currentDist);
-  }
-  delay(100);
 
   if (currentDist < 1750){
     //if has not reached wall, keep driving forward
@@ -834,27 +831,6 @@ STATE drivepathway()
   }
 
   return DRIVEPATHWAY;
-}
-
-STATE running() {
-  BluetoothSerial.print("Current Distance: ");
-  delay(20);
-  BluetoothSerial.println(currentDist);
-  delay(20);
-  BluetoothSerial.print("Previous Distance: ");
-  delay(20);
-  BluetoothSerial.println(prevDist);
-  delay(20);
-  BluetoothSerial.print("Prev Previous Distance: ");
-  delay(20);
-  BluetoothSerial.println(prevprevDist);
-  delay(20);
-  BluetoothSerial.println();
-  
-  fast_flash_double_LED_builtin();
-  delay(100000);
-
-  return RUNNING;
 }
 
 STATE stopped() {
@@ -1014,7 +990,6 @@ void updateCoordinates()
     * Hypothetically if alligned correctly, the 2 long range IR sensors should add to 1200mm once in the middle
     */
 
-  wallDirection = 0;
   bool dontUpdate = false;
 
   float backLeftDistance = getIRDistance(&IR_BL);
@@ -1090,34 +1065,6 @@ void updateCoordinates()
 }
 // ----------------------Control System------------------------
 
-// Call this function once at the beginning after robot is alligned to define what side starts closer to the wall
-void setWallDirection()
-{
-  // If left side starts closer to the wall, we are either in TOP LEFT or BOTTOM RIGHT
-  // If right side starts closer to the wall, we are either in TOP RIGHT of BOTTOM LEFT
-  (void)getIRDistance(&IR_BR);
-  (void)getIRDistance(&IR_FL);
-  
-  // If left side closer to wall, set wallDirection to 0
-  if ((IR_BL.isTooFar == false) || (IR_FL.isTooFar == false)){
-    wallDirection = 0;
-    // BluetoothSerial.println("Starting point: Top Left or Bottom Right");
-  }
-  // Else, right side is closer to wall therefore set wallDirection to 1
-  else{
-    wallDirection = 1;
-    // BluetoothSerial.println("Starting point: Top Right or Bottom Left");
-  }
-
-  float sonarDistance = ((10 * HC_SR04_range()) + 122);
-  if (sonarDistance < 600){ // robot is facing towards wall (600 is abitrary distance) basically 600 < 1000 (halfway point)
-    robotDirection = 0;
-  }
-  else {
-    robotDirection = 1;
-  }
-}
-
 //Function for inverse kinematics. Input velocities, output angular velocity of each wheel.
 void inverseKinematics (float Vx, float Vy, float Az)
 {
@@ -1177,7 +1124,7 @@ float pidControl(pidvars* pidName, float error){
   // store previous error
   pidName->eprev = error;
 
-  if (abs(error) < abs(pidName->minError) )
+  if ((abs(error) < abs(pidName->minError)) || abs(dedt) < 2.0)
   {
     pidName->withinError = true;
   }
@@ -1354,20 +1301,10 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
   // BluetoothSerial.println(-1 * angVelArray[3]);
   // delay(20);
 
-  if (wallDirection == 0)
-  {
-    left_font_motor.writeMicroseconds(1500 + angVelArray[0]);
-    right_font_motor.writeMicroseconds(1500 - angVelArray[1]);
-    left_rear_motor.writeMicroseconds(1500 + angVelArray[2]);
-    right_rear_motor.writeMicroseconds(1500 - angVelArray[3]);
-  }
-  else
-  {
-    left_font_motor.writeMicroseconds(1500 - angVelArray[0]);
-    right_font_motor.writeMicroseconds(1500 + angVelArray[1]);
-    left_rear_motor.writeMicroseconds(1500 - angVelArray[2]);
-    right_rear_motor.writeMicroseconds(1500 + angVelArray[3]);
-  }
+  left_font_motor.writeMicroseconds(1500 + angVelArray[0]);
+  right_font_motor.writeMicroseconds(1500 - angVelArray[1]);
+  left_rear_motor.writeMicroseconds(1500 + angVelArray[2]);
+  right_rear_motor.writeMicroseconds(1500 - angVelArray[3]);
 
   angVelArray[0] = 0.0;
   angVelArray[1] = 0.0;
