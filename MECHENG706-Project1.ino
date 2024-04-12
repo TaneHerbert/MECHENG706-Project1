@@ -122,7 +122,7 @@ int T = 100;
 float gyroZeroVoltage = 0;
 
 float gyroSupplyVoltage = 5;   // supply voltage for gyro
-float gyroSensitivity = 0.005; // gyro sensitivity unit is (mv/degree/second) get from datasheet
+float gyroSensitivity = 0.007; // gyro sensitivity unit is (mv/degree/second) get from datasheet
 float rotationThreshold = 3.0; // because of gyro drifting, defining rotation angular velocity less than this value will be ignored
 
 // current angle calculated by angular velocity integral on
@@ -178,7 +178,7 @@ static STATE machine_state;
 IRSensor IR_FL = 
 { 
   .IR_PIN = A5, 
-  .mSensorType = SHORTRANGE, 
+  .mSensorType = SHORTRANGE,
   .isTooFar = true,
   .isTooClose = true,
   .isInRange = true,
@@ -248,9 +248,9 @@ pidvars xVar =
   .eprev = 0,
   .eintegral = 0,
   .integralLimit = 200,
-  .kp = 1.8,
+  .kp = 1.5,
   .ki = 0.154, // 0.154
-  .kd = 0.0,  // 1.02
+  .kd = 0.02,  // 1.02
   .prevT = 0,
   .breakOutTime = 50,
   .prevBreakOutTime = 0,
@@ -264,15 +264,15 @@ pidvars yVar =
   .mPIDCONTROL = YCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .integralLimit = 300,
-  .kp = 3.8,
+  .integralLimit = 200,
+  .kp = 2.5,
   .ki = 0.205, // 0.205
-  .kd = 0.007,  // 1.04
+  .kd = 0.1,  // 1.04
   .prevT = 0,
   .breakOutTime = 50,
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 30,
+  .minError = 20, // was 30
 };
 
 //angular PID variables
@@ -324,23 +324,16 @@ float angVelArray[4];
 int pathStep = 0;
 int segmentStep = 0;
 
- float xCoordinateDes[20] = {150, 1850, 1850, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150};
- float yCoordinateDes[20] = {150, 150, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1050, 1050};
+float xCoordinateDes[20] = {100, 1800, 1800, 130, 130, 1800, 1800, 130, 130, 1800, 1800, 130, 130, 1800, 1800, 130, 130, 1800, 1800, 130};
+float yCoordinateDes[20] = {150, 150, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1050, 1050};
 
+float segmentArray[20] = {1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5}; // tells us how many segments we should break each path step into
 
-float segmentArray[20] = {1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10}; // tells us how many segments we should break each path step into
-
-int offset[20] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-
-int offsetTotal = 0;
-
-float xDesired = 150;
-float yDesired = 150;
+float xDesired = xCoordinateDes[0];
+float yDesired = yCoordinateDes[0];
 
 float xPoint[100]; // X points to travel along the line, adjust the size as needed
 float yPoint[100]; // Y points to travel along the line, adjust the size as needed
-
-bool runOnce = false;
 
 /**
  * Private Decleration 
@@ -678,11 +671,11 @@ STATE initialising() {
 STATE orientateRobot() {
   
   /*NEW HOMING CODE*/
-  speed_val = 90;
+  speed_val = 200;
   cw();
   //Turn until it reaches a mininum where both long range sensors are in range
   if (!validOrientation){
-    if (abs(abs(currentAngle) - abs(prevAngle)) >= 9) // Check orientation every 9 degrees turned
+    if (abs(abs(currentAngle) - abs(prevAngle)) >= 3) // Check orientation every 9 degrees turned
     {
       currentDist = HC_SR04_range(); //measure current sonar distance
       getIRDistance(&IR_BL_UNLIMITED); //measure distances for long range sensors on either side
@@ -691,11 +684,7 @@ STATE orientateRobot() {
       //Check if you are at a minimum point
       if ((prevDist < prevprevDist) && (prevDist < currentDist)){
         //Check if you are at a horizontal orientation, and not vertical (By checking if both long range sensors arent too far)
-        BluetoothSerial.println("BACK LEFT");
-        printBool(IR_BL_UNLIMITED);
-        BluetoothSerial.println("FRONT RIGHT");
-        printBool(IR_FR_UNLIMITED);
-        if ((!IR_BL_UNLIMITED.isTooFar) && (!IR_FR_UNLIMITED.isTooFar)){
+        if ((!IR_BL_UNLIMITED.isTooFar) && (!IR_FR_UNLIMITED.isTooFar) || (prevDist > 950)){
           validOrientation = true;
           return ORIENTATEROBOT;
         } 
@@ -746,7 +735,7 @@ STATE driveToCorner()
     return DRIVETOCORNER;
   }
 
-  float yDesiredPosition = 150;  // SHORT DISTANCE
+  float yDesiredPosition = 70;  // SHORT DISTANCE
 
   updateCoordinates();
 
@@ -814,7 +803,6 @@ STATE drivepathway()
 
     if (segmentStep >= segmentArray[pathStep]){ // The robot has reached the end of the step and needs to move to the next point path point
       segmentStep = 0; // reset segment step
-      runOnce = false;
       pathStep++;
 
       drivePoints((xCoordinateDes[pathStep-1]),(yCoordinateDes[pathStep-1]),(xCoordinateDes[pathStep]),(yCoordinateDes[pathStep]),(segmentArray[pathStep]));
@@ -923,8 +911,6 @@ void GyroSetup()
 // TODO: ALWAYS THINKS T = 100 when in fact could be slightly above or below. Need to get actual difference from non blocking delay
 void getCurrentAngle() 
 {
-  unsigned long time = millis() - mNonBlockingTimerGyro.lastUpdateTime;
-
   if (!nonBlockingDelay(&mNonBlockingTimerGyro.lastUpdateTime, T))
   {
     return;
@@ -939,20 +925,11 @@ void getCurrentAngle()
   // if the angular velocity is less than the threshold, ignore it
   if (abs(angularVelocity) >= rotationThreshold) {
     // we are running a loop in T (of T/1000 second).
-    float angleChange = angularVelocity / (1000 / time);
+    float angleChange = angularVelocity / (1000 / T);
     currentAngle += angleChange;
 
     // Accumulate the angle change
     cumulativeAngleChange += angleChange;
-  }
-
-  if (runOnce != true)
-  {
-    offsetTotal += offset[pathStep];
-    runOnce = true;
-    // BluetoothSerial.println("ADDED ERROR");
-    // BluetoothSerial.println(offset[pathStep]);
-    currentAngle = currentAngle + offsetTotal;
   }
 
   // keep the angle between 0-360
@@ -1084,10 +1061,10 @@ void inverseKinematics (float Vx, float Vy, float Az)
     angVelArray[i] / radius;
 
     // Saturation for motors
-    if (angVelArray[i] > 300) {
-      angVelArray[i] = 300;
-    } else if (angVelArray[i] < -300) {
-      angVelArray[i] = -300;
+    if (angVelArray[i] > 500) {
+      angVelArray[i] = 500;
+    } else if (angVelArray[i] < -500) {
+      angVelArray[i] = -500;
     }
   }
 } 
@@ -1125,7 +1102,15 @@ float pidControl(pidvars* pidName, float error){
   // store previous error
   pidName->eprev = error;
 
-  if ((abs(error) < abs(pidName->minError)) || abs(dedt) < 2.0)
+  if (pidName->mPIDCONTROL == XCONTROL)
+  {
+    if(nonBlockingDelay(&mNonBlockingPrint.lastUpdateTime, 200))
+    {
+      BluetoothSerial.println(dedt);
+    }
+  }
+
+  if ((abs(error) < abs(pidName->minError)))
   {
     pidName->withinError = true;
   }
@@ -1344,6 +1329,15 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
       aVar.prevT = 0;
       xVar.prevT = 0;
       yVar.prevT = 0;
+
+      if (pathStep == 4 || pathStep == 8 || pathStep == 12 || pathStep == 16)
+      {
+        reverse();
+        delay(400);
+        stop();
+        delay(400);
+        currentAngle = 0;
+      }
       return true;
     }
   }
