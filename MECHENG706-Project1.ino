@@ -265,9 +265,9 @@ pidvars yVar =
   .eprev = 0,
   .eintegral = 0,
   .integralLimit = 300,
-  .kp = 3.5,
+  .kp = 3.8,
   .ki = 0.205, // 0.205
-  .kd = 0.0,  // 1.04
+  .kd = 0.007,  // 1.04
   .prevT = 0,
   .breakOutTime = 50,
   .prevBreakOutTime = 0,
@@ -282,9 +282,9 @@ pidvars aVar =
   .eprev = 0,
   .eintegral = 0,
   .integralLimit = 100,
-  .kp = 0.3,
-  .ki = 0.01, // 0.343
-  .kd = 0.0, // 1.21
+  .kp = 0.13,
+  .ki = 0.0, // 0.343
+  .kd = 0.01, // 1.21
   .prevT = 0, 
   .breakOutTime = 20,
   .prevBreakOutTime = 0,
@@ -299,11 +299,11 @@ pidvars alignVar =
   .eprev = 0,
   .eintegral = 0,
   .integralLimit = 200, // ????
-  .kp = 2.6,
+  .kp = 2.2,
   .ki = 2.0, // 0.343
   .kd = 0.0, // 1.21
   .prevT = 0, 
-  .breakOutTime = 100,
+  .breakOutTime = 300,
   .prevBreakOutTime = 0,
   .withinError = false,
   .minError = 20,
@@ -324,10 +324,11 @@ float angVelArray[4];
 int pathStep = 0;
 int segmentStep = 0;
 
-float xCoordinateDes[20] = {250, 1750, 1750, 250, 250, 1750, 1750, 250, 250, 1750, 1750, 250, 250, 1750, 1750, 250, 250, 1750, 1750, 250};
-float yCoordinateDes[20] = {150, 150, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1050, 1050};
+ float xCoordinateDes[20] = {150, 1850, 1850, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150, 150, 1850, 1850, 150};
+ float yCoordinateDes[20] = {150, 150, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1050, 1050};
 
-float segmentArray[21] = {1,10,1,10,1,10,1,10,1,10,1,10,1,10,1,10,1,10,1,10,99999}; // tells us how many segments we should break each path step into
+
+float segmentArray[20] = {1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10}; // tells us how many segments we should break each path step into
 
 int offset[20] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
@@ -679,10 +680,9 @@ STATE orientateRobot() {
   /*NEW HOMING CODE*/
   speed_val = 90;
   cw();
-
   //Turn until it reaches a mininum where both long range sensors are in range
   if (!validOrientation){
-    if (abs(abs(currentAngle) - abs(prevAngle)) >= 11) // Check orientation every 9 degrees turned
+    if (abs(abs(currentAngle) - abs(prevAngle)) >= 9) // Check orientation every 9 degrees turned
     {
       currentDist = HC_SR04_range(); //measure current sonar distance
       getIRDistance(&IR_BL_UNLIMITED); //measure distances for long range sensors on either side
@@ -691,6 +691,10 @@ STATE orientateRobot() {
       //Check if you are at a minimum point
       if ((prevDist < prevprevDist) && (prevDist < currentDist)){
         //Check if you are at a horizontal orientation, and not vertical (By checking if both long range sensors arent too far)
+        BluetoothSerial.println("BACK LEFT");
+        printBool(IR_BL_UNLIMITED);
+        BluetoothSerial.println("FRONT RIGHT");
+        printBool(IR_FR_UNLIMITED);
         if ((!IR_BL_UNLIMITED.isTooFar) && (!IR_FR_UNLIMITED.isTooFar)){
           validOrientation = true;
           return ORIENTATEROBOT;
@@ -787,7 +791,12 @@ STATE driveToCorner()
     {
       alignVar.eprev = 0;
       alignVar.eintegral = 0;
+
       stop();
+      // speed_val = 300;
+      // reverse();    
+      delay(1000);
+      // stop();
       currentAngle = 0;
       return DRIVEPATHWAY;
     }
@@ -808,13 +817,8 @@ STATE drivepathway()
       runOnce = false;
       pathStep++;
 
-      // There will be 2 coordinate paths that the robot will take depending on direction it STARTTED (robotDirection)
-      if (true == true){ // started facing away from wall (use pathArray1)
-        drivePoints((xCoordinateDes[pathStep-1]),(yCoordinateDes[pathStep-1]),(xCoordinateDes[pathStep]),(yCoordinateDes[pathStep]),(segmentArray[pathStep]));
-      }
-      else { // started facing wall (use pathArray0)
-        //drivePoints((pathArray0[pathStep-1][1]),(pathArray0[pathStep-1][2]),(pathArray0[pathStep][1]),(pathArray0[pathStep][2]),(segmentArray[pathStep]));
-      }
+      drivePoints((xCoordinateDes[pathStep-1]),(yCoordinateDes[pathStep-1]),(xCoordinateDes[pathStep]),(yCoordinateDes[pathStep]),(segmentArray[pathStep]));
+
       xDesired = xPoint[0];
       yDesired = yPoint[0];
     }
@@ -834,9 +838,6 @@ STATE drivepathway()
 }
 
 STATE stopped() {
-  reverse();
-  delay(100);
-  
   stop();
   disable_motors();
   slow_flash_LED_builtin();
@@ -949,8 +950,8 @@ void getCurrentAngle()
   {
     offsetTotal += offset[pathStep];
     runOnce = true;
-    BluetoothSerial.println("ADDED ERROR");
-    BluetoothSerial.println(offset[pathStep]);
+    // BluetoothSerial.println("ADDED ERROR");
+    // BluetoothSerial.println(offset[pathStep]);
     currentAngle = currentAngle + offsetTotal;
   }
 
