@@ -267,7 +267,7 @@ pidvars yVar =
   .breakOutTime = 50,
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 20, // was 30
+  .minError = 20,
   .minChangeInError = 10
 };
 
@@ -295,8 +295,8 @@ pidvars alignVar =
   .eprev = 0,
   .eintegral = 0,
   .kp = 2.2,
-  .ki = 2.0, // 0.343
-  .kd = 0.0, // 1.21
+  .ki = 2.0,
+  .kd = 0.0,
   .prevT = 0, 
   .breakOutTime = 300,
   .prevBreakOutTime = 0,
@@ -644,8 +644,6 @@ void fast_flash_double_LED_builtin()
 
   // Inititlisations
 STATE initialising() {
-  BluetoothSerial.println("INITIALISING....");
-
   enable_motors();
   GyroSetup();  //Set up starting voltage for gyro
 
@@ -701,8 +699,8 @@ STATE alignAtWall(){
     return ALIGNATWALL;
   }
   else{
-    //Wait 0.5 seconds and then stop
-    delay(500);
+    //Wait 0.4 seconds and then stop
+    delay(400);
     stop();
     return DRIVETOCORNER;
   }
@@ -710,14 +708,14 @@ STATE alignAtWall(){
 
 STATE driveToCorner()
 {
-  if (alignVar.prevT == 0)
-  {
-    alignVar.prevT = millis();
-  }
-
   if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 50)) // Run straight every 50 ms
   {
     return DRIVETOCORNER;
+  }
+
+  if (alignVar.prevT == 0)
+  {
+    alignVar.prevT = millis();
   }
 
   float yDesiredPosition = 70;  // SHORT DISTANCE
@@ -959,7 +957,7 @@ void updateCoordinates()
 // ----------------------Control System------------------------
 
 //Function for inverse kinematics. Input velocities, output angular velocity of each wheel.
-void inverseKinematics (float Vx, float Vy, float Az)
+void inverseKinematics(float Vx, float Vy, float Az)
 {
   float radius = 27;
 
@@ -974,13 +972,6 @@ void inverseKinematics (float Vx, float Vy, float Az)
       angVelArray[i] += invKMatrix[i][k] * velArray[k];
     }
     angVelArray[i] / radius;
-
-    // Saturation for motors
-    if (angVelArray[i] > 500) {
-      angVelArray[i] = 500;
-    } else if (angVelArray[i] < -500) {
-      angVelArray[i] = -500;
-    }
   }
 } 
 
@@ -1009,14 +1000,14 @@ float pidControl(pidvars* pidName, float error){
   if (pidName->mPIDCONTROL == XCONTROL || pidName->mPIDCONTROL == YCONTROL)
   {
     // Upper saturation of 300 to motor
-    if (velocity > (300 * radius))
+    if (velocity > (maxPower * radius))
     {
-      velocity = 300 * radius;
-    }
-    // lower saturation of 300 to motor
-    else if (velocity < (-300 * radius))
+      velocity = maxPower * radius;
+    } 
+    // lower saturation of maxPower to motor
+    else if (velocity < (-maxPower * radius))
     {
-      velocity = (-300 * radius);
+      velocity = (-maxPower * radius);
     }
     // Not saturated
     else
@@ -1027,15 +1018,34 @@ float pidControl(pidvars* pidName, float error){
 
   if (pidName->mPIDCONTROL == ACONTROL)
   {
-    // Upper saturation of 300 to motor
-    if (velocity > ((300 * radius)/165.0))
+    // Upper saturation of maxPower to motor
+    if (velocity > ((maxPower * radius)/165.0))
     {
-      velocity = ((300 * radius)/165.0);
+      velocity = ((maxPower * radius)/165.0);
     }
-    // lower saturation of 300 to motor
-    else if (velocity < ((-300 * radius)/165.0))
+    // lower saturation of maxPower to motor
+    else if (velocity < ((-maxPower * radius)/165.0))
     {
-      velocity = ((-300 * radius)/165.0);
+      velocity = ((-maxPower * radius)/165.0);
+    }
+    // Not saturated
+    else
+    {
+      pidName->eintegral = potentialIntegral;
+    }
+  }
+
+  if (pidName->mPIDCONTROL == ALIGNCONTROL)
+  {
+    // Upper saturation of 500 to motor
+    if (velocity > (500 * radius))
+    {
+      velocity = 500 * radius;
+    }
+    // lower saturation of 500 to motor
+    else if (velocity < (-500 * radius))
+    {
+      velocity = (-500 * radius);
     }
     // Not saturated
     else
@@ -1138,6 +1148,11 @@ void printBool(IRSensor mIRSensor)
 
 bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
 {
+  if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 30)) // Run straight every 30 ms
+  {
+    return false;
+  }
+
   if (xVar.prevT == 0)
   {
     xVar.prevT = millis();
@@ -1151,11 +1166,6 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
   if (aVar.prevT == 0)
   {
     aVar.prevT = millis();
-  }
-
-  if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 30)) // Run straight every 50 ms
-  {
-    return false;
   }
 
   updateCoordinates();
@@ -1219,7 +1229,7 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
       xVar.prevT = 0;
       yVar.prevT = 0;
 
-      if (pathStep == 4 || pathStep == 8 || pathStep == 12 || pathStep == 16)
+      if (pathStep == 4 || pathStep == 8 || pathStep == 12 || pathStep == 16) // Smash into wall to align
       {
         reverse();
         delay(400);
