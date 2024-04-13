@@ -243,15 +243,15 @@ pidvars xVar =
   .mPIDCONTROL = XCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .kp = 1.5,
-  .ki = 0.154,
-  .kd = 0.02,
+  .kp = 1.5,   // CHANGABLE
+  .ki = 0.154, // CHANGABLE
+  .kd = 0.02,  // CHANGABLE
   .prevT = 0,
-  .breakOutTime = 50,
+  .breakOutTime = 50, // CHANGABLE
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 60,
-  .minChangeInError = 10
+  .minError = 60, // CHANGABLE
+  .minChangeInError = 10 // CHANGABLE
 };
 
 //y coord PID variables
@@ -260,15 +260,15 @@ pidvars yVar =
   .mPIDCONTROL = YCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .kp = 2.5,
-  .ki = 0.75,
-  .kd = 0.15,
+  .kp = 2.5,  // CHANGABLE
+  .ki = 0.75, // CHANGABLE
+  .kd = 0.15, // CHANGABLE
   .prevT = 0,
-  .breakOutTime = 50,
+  .breakOutTime = 50, // CHANGABLE
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 20,
-  .minChangeInError = 10
+  .minError = 20, // CHANGABLE
+  .minChangeInError = 10 // CHANGABLE
 };
 
 //angular PID variables
@@ -277,15 +277,15 @@ pidvars aVar =
   .mPIDCONTROL = ACONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .kp = 0.17,
-  .ki = 0.0,
-  .kd = 0.01,
+  .kp = 0.17, // CHANGABLE
+  .ki = 0.0,  // CHANGABLE
+  .kd = 0.01, // CHANGABLE
   .prevT = 0, 
-  .breakOutTime = 50,
+  .breakOutTime = 50, // CHANGABLE
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 1.0,
-  .minChangeInError = 1.0
+  .minError = 1.0, // CHANGABLE
+  .minChangeInError = 1.0 // CHANGABLE
 };
 
 //Alignment PID variables
@@ -294,15 +294,15 @@ pidvars alignVar =
   .mPIDCONTROL = ALIGNCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .kp = 2.2,
-  .ki = 2.0,
-  .kd = 0.0,
+  .kp = 2.2, // CHANGABLE
+  .ki = 2.0, // CHANGABLE
+  .kd = 0.0, // CHANGABLE
   .prevT = 0, 
-  .breakOutTime = 300,
+  .breakOutTime = 300,  // CHANGABLE
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 20,
-  .minChangeInError = 10
+  .minError = 20,       // CHANGABLE
+  .minChangeInError = 10 // CHANGABLE
 };
 
 //Initialise matrix for inverse kinematics:
@@ -434,7 +434,7 @@ void loop(void)  //main loop
   /**
    * Methods that must run every loop 
    */
-  getCurrentAngle(); // This function must run every 70ms so is placed outside the FSM
+  getCurrentAngle(); // This function must run every 100ms so is placed outside the FSM
 }
 
 //----------------------Motor moments------------------------
@@ -652,7 +652,7 @@ STATE initialising() {
   return ORIENTATEROBOT;
 }
 
-// Powe rotating is potentially too fast
+// Power rotating is potentially too fast
 STATE orientateRobot() {
   
   /*NEW HOMING CODE*/
@@ -660,6 +660,7 @@ STATE orientateRobot() {
   cw();
   //Turn until it reaches a mininum where both long range sensors are in range
   if (!validOrientation){
+    // Maybe use time instead (not angle)
     if (abs(abs(currentAngle) - abs(prevAngle)) >= 3) // Check orientation every 9 degrees turned
     {
       currentDist = HC_SR04_range(); //measure current sonar distance
@@ -997,6 +998,7 @@ float pidControl(pidvars* pidName, float error){
   float radius = 27.0f;
   float maxPower = 300;
 
+  // could also implement lower saturation limit but for this project dont need to
   if (pidName->mPIDCONTROL == XCONTROL || pidName->mPIDCONTROL == YCONTROL)
   {
     // Upper saturation of 300 to motor
