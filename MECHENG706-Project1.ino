@@ -243,9 +243,9 @@ pidvars xVar =
   .mPIDCONTROL = XCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .kp = 1.5,   // CHANGABLE
-  .ki = 0.154, // CHANGABLE
-  .kd = 0.02,  // CHANGABLE
+  .kp = 0.5,   // CHANGABLE
+  .ki = 0., // CHANGABLE
+  .kd = 0.0,  // CHANGABLE
   .prevT = 0,
   .breakOutTime = 50, // CHANGABLE
   .prevBreakOutTime = 0,
@@ -260,9 +260,9 @@ pidvars yVar =
   .mPIDCONTROL = YCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .kp = 2.5,  // CHANGABLE
-  .ki = 0.75, // CHANGABLE
-  .kd = 0.15, // CHANGABLE
+  .kp = 0.5,  // CHANGABLE
+  .ki = 0.0, // CHANGABLE
+  .kd = 0.0, // CHANGABLE
   .prevT = 0,
   .breakOutTime = 50, // CHANGABLE
   .prevBreakOutTime = 0,
@@ -277,9 +277,9 @@ pidvars aVar =
   .mPIDCONTROL = ACONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .kp = 0.17, // CHANGABLE
+  .kp = 0.0, // CHANGABLE
   .ki = 0.0,  // CHANGABLE
-  .kd = 0.01, // CHANGABLE
+  .kd = 0.0, // CHANGABLE
   .prevT = 0, 
   .breakOutTime = 50, // CHANGABLE
   .prevBreakOutTime = 0,
@@ -294,8 +294,8 @@ pidvars alignVar =
   .mPIDCONTROL = ALIGNCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .kp = 2.2, // CHANGABLE
-  .ki = 2.0, // CHANGABLE
+  .kp = 0.5, // CHANGABLE
+  .ki = 0.0, // CHANGABLE
   .kd = 0.0, // CHANGABLE
   .prevT = 0, 
   .breakOutTime = 300,  // CHANGABLE
@@ -320,11 +320,11 @@ float angVelArray[4];
 int pathStep = 0;
 int segmentStep = 0;
 
-float xCoordinateDes[20] = {100, 1800, 1800, 130, 130, 1800, 1800, 130, 130, 1800, 1800, 130, 130, 1800, 1800, 130, 130, 1800, 1800, 130};
+float xCoordinateDes[20] = {150, 1800, 1800, 130, 130, 1800, 1800, 130, 130, 1800, 1800, 130, 130, 1800, 1800, 130, 130, 1800, 1800, 130};
 float yCoordinateDes[20] = {150, 150, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1050, 1050};
 
-// float segmentArray[20] = {1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5}; // tells us how many segments we should break each path step into
-float segmentArray[20] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+float segmentArray[20] = {1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5}; // tells us how many segments we should break each path step into
+// float segmentArray[20] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 float xDesired = xCoordinateDes[0];
 float yDesired = yCoordinateDes[0];
@@ -711,6 +711,7 @@ STATE driveToCorner()
 {
   if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 50)) // Run straight every 50 ms
   {
+    BluetoothSerial.println("corner");
     return DRIVETOCORNER;
   }
 
@@ -726,7 +727,7 @@ STATE driveToCorner()
   float alignError = yDesiredPosition - yCoordinate;
 
   float alignVelocity = pidControl(&alignVar, alignError);
-  inverseKinematics(-380, alignVelocity, 0);
+  inverseKinematics(-100, alignVelocity, 0);
 
   left_font_motor.writeMicroseconds(1500 + angVelArray[0]);
   right_font_motor.writeMicroseconds(1500 - angVelArray[1]);
@@ -783,6 +784,9 @@ STATE drivepathway()
       xDesired = xPoint[0];
       yDesired = yPoint[0];
     }
+
+    BluetoothSerial.println(xDesired);
+    BluetoothSerial.println(yDesired);
 
     // Make a little more robust if we add more points but alg
     if (pathStep >= 20)
@@ -1056,8 +1060,10 @@ float pidControl(pidvars* pidName, float error){
     }
   }
 
+  // || abs(abs(error) - abs(pidName->eprev)) < pidName->minChangeInError
+
   // Check this
-  if ((abs(error) < abs(pidName->minError)) || abs(abs(error) - abs(pidName->eprev)) < pidName->minChangeInError)
+  if ((abs(error) < abs(pidName->minError)))
   {
     pidName->withinError = true;
   }
@@ -1200,22 +1206,22 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
 
   if (xVar.withinError == true && yVar.withinError == true && aVar.withinError == true)
   {
-    int check = 0;
+    int check = 3;
 
-    if (breakOutTimerPID(&xVar.prevBreakOutTime, xVar.breakOutTime))
-    {
-      check++;
-    }
+    // if (breakOutTimerPID(&xVar.prevBreakOutTime, xVar.breakOutTime))
+    // {
+    //   check++;
+    // }
     
-    if (breakOutTimerPID(&yVar.prevBreakOutTime, yVar.breakOutTime))
-    {
-      check++;
-    }
+    // if (breakOutTimerPID(&yVar.prevBreakOutTime, yVar.breakOutTime))
+    // {
+    //   check++;
+    // }
     
-    if (breakOutTimerPID(&aVar.prevBreakOutTime, aVar.breakOutTime))
-    {
-      check++;
-    }
+    // if (breakOutTimerPID(&aVar.prevBreakOutTime, aVar.breakOutTime))
+    // {
+    //   check++;
+    // }
 
     if (check == 3)
     {
