@@ -243,14 +243,14 @@ pidvars xVar =
   .mPIDCONTROL = XCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .kp = 0.5,   // CHANGABLE
-  .ki = 0., // CHANGABLE
+  .kp = 8.0,   // CHANGABLE
+  .ki = 0.0, // CHANGABLE
   .kd = 0.0,  // CHANGABLE
   .prevT = 0,
   .breakOutTime = 50, // CHANGABLE
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 60, // CHANGABLE
+  .minError = 20, // CHANGABLE
   .minChangeInError = 10 // CHANGABLE
 };
 
@@ -260,8 +260,8 @@ pidvars yVar =
   .mPIDCONTROL = YCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .kp = 0.5,  // CHANGABLE
-  .ki = 0.0, // CHANGABLE
+  .kp = 0.00,  // CHANGABLE
+  .ki = 0.00, // CHANGABLE
   .kd = 0.0, // CHANGABLE
   .prevT = 0,
   .breakOutTime = 50, // CHANGABLE
@@ -277,7 +277,7 @@ pidvars aVar =
   .mPIDCONTROL = ACONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .kp = 0.0, // CHANGABLE
+  .kp = 0.5, // CHANGABLE
   .ki = 0.0,  // CHANGABLE
   .kd = 0.0, // CHANGABLE
   .prevT = 0, 
@@ -285,7 +285,7 @@ pidvars aVar =
   .prevBreakOutTime = 0,
   .withinError = false,
   .minError = 1.0, // CHANGABLE
-  .minChangeInError = 1.0 // CHANGABLE
+  .minChangeInError = 2.0 // CHANGABLE
 };
 
 //Alignment PID variables
@@ -294,14 +294,14 @@ pidvars alignVar =
   .mPIDCONTROL = ALIGNCONTROL,
   .eprev = 0,
   .eintegral = 0,
-  .kp = 0.5, // CHANGABLE
-  .ki = 0.0, // CHANGABLE
+  .kp = 8.0, // CHANGABLE
+  .ki = 1.0, // CHANGABLE
   .kd = 0.0, // CHANGABLE
   .prevT = 0, 
   .breakOutTime = 300,  // CHANGABLE
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 20,       // CHANGABLE
+  .minError = 50,       // CHANGABLE
   .minChangeInError = 10 // CHANGABLE
 };
 
@@ -314,17 +314,17 @@ float invKMatrix[4][3] =
   {1,  1,  165} 
 };
 
-float velArray[3];
-float angVelArray[4];
+float velArray[3] = { 0 };
+float angVelArray[4] = { 0 };
 
 int pathStep = 0;
 int segmentStep = 0;
 
-float xCoordinateDes[20] = {150, 1800, 1800, 130, 130, 1800, 1800, 130, 130, 1800, 1800, 130, 130, 1800, 1800, 130, 130, 1800, 1800, 130};
+float xCoordinateDes[20] = {120, 1800, 1800, 150, 150, 1800, 1800, 130, 130, 1800, 1800, 130, 130, 1800, 1800, 130, 130, 1800, 1800, 130};
 float yCoordinateDes[20] = {150, 150, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1050, 1050};
 
-float segmentArray[20] = {1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5}; // tells us how many segments we should break each path step into
-// float segmentArray[20] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+// float segmentArray[20] = {1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5}; // tells us how many segments we should break each path step into
+float segmentArray[20] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 float xDesired = xCoordinateDes[0];
 float yDesired = yCoordinateDes[0];
@@ -656,7 +656,7 @@ STATE initialising() {
 STATE orientateRobot() {
   
   /*NEW HOMING CODE*/
-  speed_val = 200;
+  speed_val = 120;
   cw();
   //Turn until it reaches a mininum where both long range sensors are in range
   if (!validOrientation){
@@ -711,7 +711,6 @@ STATE driveToCorner()
 {
   if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 50)) // Run straight every 50 ms
   {
-    BluetoothSerial.println("corner");
     return DRIVETOCORNER;
   }
 
@@ -727,7 +726,7 @@ STATE driveToCorner()
   float alignError = yDesiredPosition - yCoordinate;
 
   float alignVelocity = pidControl(&alignVar, alignError);
-  inverseKinematics(-100, alignVelocity, 0);
+  inverseKinematics(-200, alignVelocity, 0); // for 250 power should be 250 * 27
 
   left_font_motor.writeMicroseconds(1500 + angVelArray[0]);
   right_font_motor.writeMicroseconds(1500 - angVelArray[1]);
@@ -976,7 +975,19 @@ void inverseKinematics(float Vx, float Vy, float Az)
     for(int k = 0; k < 3; ++k){
       angVelArray[i] += invKMatrix[i][k] * velArray[k];
     }
-    angVelArray[i] / radius;
+    
+    angVelArray[i] = angVelArray[i] / radius;
+
+    if (angVelArray[i] > 600)
+    {
+      angVelArray[i] = 600;
+      BluetoothSerial.println("BAD HIGH");
+    }
+    else if (angVelArray[i] < -600)
+    {
+      angVelArray[i] = -600;
+      BluetoothSerial.println("BAD LOW");
+    }
   }
 } 
 
@@ -1000,7 +1011,7 @@ float pidControl(pidvars* pidName, float error){
   float velocity = pidName->kp * error + pidName->ki * pidName->eintegral + pidName->kd * dedt;
 
   float radius = 27.0f;
-  float maxPower = 300;
+  float maxPower = 200;
 
   // could also implement lower saturation limit but for this project dont need to
   if (pidName->mPIDCONTROL == XCONTROL || pidName->mPIDCONTROL == YCONTROL)
@@ -1019,6 +1030,15 @@ float pidControl(pidvars* pidName, float error){
     else
     {
       pidName->eintegral = potentialIntegral;
+    }
+
+    if (velocity > 0 && velocity < (100 * radius))
+    {
+      velocity = 100 * radius;
+    }
+    else if (velocity < 0 && velocity > (-100 * radius))
+    {
+      velocity = -100 * radius;
     }
   }
 
@@ -1044,14 +1064,14 @@ float pidControl(pidvars* pidName, float error){
   if (pidName->mPIDCONTROL == ALIGNCONTROL)
   {
     // Upper saturation of 500 to motor
-    if (velocity > (500 * radius))
+    if (velocity > (maxPower * radius))
     {
-      velocity = 500 * radius;
+      velocity = maxPower * radius;
     }
     // lower saturation of 500 to motor
-    else if (velocity < (-500 * radius))
+    else if (velocity < (-maxPower * radius))
     {
-      velocity = (-500 * radius);
+      velocity = (-maxPower * radius);
     }
     // Not saturated
     else
@@ -1060,9 +1080,7 @@ float pidControl(pidvars* pidName, float error){
     }
   }
 
-  // || abs(abs(error) - abs(pidName->eprev)) < pidName->minChangeInError
-
-  // Check this
+// || abs(abs(error) - abs(pidName->eprev)) < pidName->minChangeInError (Needs to be in seperate timer potentially)
   if ((abs(error) < abs(pidName->minError)))
   {
     pidName->withinError = true;
@@ -1134,7 +1152,7 @@ float getIRDistance(IRSensor* mIRSensor)
     return 0.0;
   }
 
-  return distance; // Remember its distance should return
+  return distance;
 }
 
 void printBool(IRSensor mIRSensor)
@@ -1156,7 +1174,7 @@ void printBool(IRSensor mIRSensor)
 
 bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
 {
-  if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 30)) // Run straight every 30 ms
+  if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 50)) // Run straight every 30 ms
   {
     return false;
   }
@@ -1206,22 +1224,22 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
 
   if (xVar.withinError == true && yVar.withinError == true && aVar.withinError == true)
   {
-    int check = 3;
+    int check = 0;
 
-    // if (breakOutTimerPID(&xVar.prevBreakOutTime, xVar.breakOutTime))
-    // {
-    //   check++;
-    // }
+    if (breakOutTimerPID(&xVar.prevBreakOutTime, xVar.breakOutTime))
+    {
+      check++;
+    }
     
-    // if (breakOutTimerPID(&yVar.prevBreakOutTime, yVar.breakOutTime))
-    // {
-    //   check++;
-    // }
+    if (breakOutTimerPID(&yVar.prevBreakOutTime, yVar.breakOutTime))
+    {
+      check++;
+    }
     
-    // if (breakOutTimerPID(&aVar.prevBreakOutTime, aVar.breakOutTime))
-    // {
-    //   check++;
-    // }
+    if (breakOutTimerPID(&aVar.prevBreakOutTime, aVar.breakOutTime))
+    {
+      check++;
+    }
 
     if (check == 3)
     {
