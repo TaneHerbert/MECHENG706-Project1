@@ -182,8 +182,8 @@ IRSensor IR_FL =
   .isTooFar = true,
   .isTooClose = true,
   .isInRange = true,
-  .lowerVoltage = 0.30, 
-  .upperVoltage = 2.20,
+  .lowerVoltage = 0.30, //290cm
+  .upperVoltage = 2.20, //4cm
 };
 
 IRSensor IR_BL = 
@@ -193,8 +193,8 @@ IRSensor IR_BL =
   .isTooFar = true,
   .isTooClose = true,
   .isInRange = true,
-  .lowerVoltage = 0.51,
-  .upperVoltage = 2.00
+  .lowerVoltage = 0.57, //52cm
+  .upperVoltage = 2.00 //120cm
 };
 
 IRSensor IR_FR = 
@@ -204,8 +204,8 @@ IRSensor IR_FR =
   .isTooFar = true,
   .isTooClose = true,
   .isInRange = true,
-  .lowerVoltage = 0.46,
-  .upperVoltage = 2.00
+  .lowerVoltage = 0.55, //50cm
+  .upperVoltage = 2.00 //120cm
 };
 
 IRSensor IR_BR = 
@@ -215,8 +215,8 @@ IRSensor IR_BR =
   .isTooFar = true,
   .isTooClose = true,
   .isInRange = true,
-  .lowerVoltage = 0.31,
-  .upperVoltage = 2.30
+  .lowerVoltage = 0.31, //28cm
+  .upperVoltage = 2.30 //4cm
 };
 
 IRSensor IR_BL_UNLIMITED = 
@@ -282,7 +282,7 @@ pidvars aVar =
   .eprev = 0,
   .eintegral = 0,
   .integralLimit = 100,
-  .kp = 0.4,
+  .kp = 0.28,
   .ki = 0.0, // 0.343
   .kd = 0.01, // 1.21
   .prevT = 0, 
@@ -968,8 +968,6 @@ void updateCoordinates()
     * Hypothetically if alligned correctly, the 2 long range IR sensors should add to 1200mm once in the middle
     */
 
-  bool dontUpdate = false;
-
   float backLeftDistance = getIRDistance(&IR_BL);
   float backRightDistance = getIRDistance(&IR_BR);
   float frontRightDistance = getIRDistance(&IR_FR);
@@ -986,12 +984,27 @@ void updateCoordinates()
 
   //FOR LEFT SIDE MEDIUM CLOSE, MORE THAN 100mm, LESS THAN 290mm
   else if ((IR_FL.isInRange) && (IR_BL.isInRange) && (IR_FR.isTooFar) && (IR_BR.isTooFar)){
-    yCoordinate = (frontLeftDistance + 72.0);
+    yCoordinate = ((frontLeftDistance + 72.0) + (backLeftDistance + 72.0)) / 2.0;
+  }
+
+  //FOR LEFT SIDE MEDIUM, WHEN ONLY BACKLEFT (LONG) SENSOR IN RANE
+  else if ((IR_FL.isTooFar) && (IR_FR.isTooFar) && (IR_BL.isInRange) && (IR_BR.isTooFar)){
+    yCoordinate = (backLeftDistance + 72.0);
+  }
+
+  //FOR IN MIDDLE, WHEN BOTH SENSORS ARE IN RANGE
+  else if ((IR_FL.isTooFar) && (IR_FR.isInRange) && (IR_BL.isInRange) && (IR_BR.isTooFar)){
+    yCoordinate = ((1200.0 - 72.0 - frontRightDistance) + (backLeftDistance + 72.0)) / 2.0;
+  }
+
+  //FOR RIGHT SIDE MEDIUM, WHEN ONLY FRONTRIGHT (LONG) SENSOR IN RANE
+  else if ((IR_FL.isTooFar) && (IR_FR.isInRange) && (IR_BL.isTooFar) && (IR_BR.isTooFar)){
+    yCoordinate = (1200.0 - 72.0 - frontRightDistance);
   }
 
   //FOR RIGHT SIDE MEDIUM CLOSE, MORE THAN 100mm, LESS THAN 290mm
   else if ((IR_FR.isInRange) && (IR_BR.isInRange) && (IR_FL.isTooFar) && (IR_BL.isTooFar)){
-    yCoordinate = (1200.0 - 72.0 - backRightDistance);
+    yCoordinate = ((1200.0 - 72.0 - backRightDistance) + (1200.0 - 72.0 - frontRightDistance)) / 2.0;
   }
 
   //FOR RIGHT SIDE VERY CLOSE, LESS THAN 100mm
@@ -1005,37 +1018,9 @@ void updateCoordinates()
     yCoordinate = 1200.0 - 72.0;
   } 
 
-    //FOR IN MIDDLE, MORE THAN 290mm on both sides
-  else if ((IR_FL.isTooFar) && (IR_FR.isInRange || IR_BL.isInRange) && (IR_BR.isTooFar)){
-    if (frontRightDistance <= 600){
-      //use frontright sensor only
-      yCoordinate = (1200.0 - frontRightDistance - 72.0);
-    }
-
-    //If its closer to the left side
-    else if (backLeftDistance <= 540){
-      //use backleft sensor only
-      yCoordinate = (backLeftDistance + 72.0);
-    }    
-
-    else{
-      //dont update the coordinates.
-      dontUpdate = true;
-    }
-  }
 
   //FOR WHEN NO CASES WORKING
   else{
-    //print to let them know
-    BluetoothSerial.println("Error, no cases fit");
-    // BluetoothSerial.println("BACK LEFT");
-    // printBool(IR_BL);
-    // BluetoothSerial.println("BACK RIGHT");
-    // printBool(IR_BR);
-    // BluetoothSerial.println("FRONT LEFT");
-    // printBool(IR_FL);
-    // BluetoothSerial.println("FRONT RIGHT");
-    // printBool(IR_FR);
     //dont update y coordinate.
   }
 
