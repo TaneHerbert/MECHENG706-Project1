@@ -325,7 +325,7 @@ int pathStep = 0;
 int segmentStep = 0;
 
 float xCoordinateDes[20] = {100, 1850, 1850, 130, 130, 1850, 1850, 130, 130, 1850, 1850, 130, 130, 1850, 1850, 130, 130, 1850, 1850, 130};
-float yCoordinateDes[20] = {135, 135, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1080, 1080};
+float yCoordinateDes[20] = {140, 140, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1080, 1080};
 
 float segmentArray[20] = {1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5}; // tells us how many segments we should break each path step into
 
