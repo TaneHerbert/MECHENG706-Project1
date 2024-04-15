@@ -26,8 +26,8 @@
  * Public pins
  */
 
-#define BLUETOOTH_RX 10 // Serial Data input pin
-#define BLUETOOTH_TX 11 // Serial Data output pin
+#define BLUETOOTH_RX 19 // Serial Data input pin
+#define BLUETOOTH_TX 18 // Serial Data output pin
 
 // Default ultrasonic ranging sensor pins
 const int TRIG_PIN = 42;
@@ -325,7 +325,7 @@ int pathStep = 0;
 int segmentStep = 0;
 
 float xCoordinateDes[20] = {100, 1850, 1850, 130, 130, 1850, 1850, 130, 130, 1850, 1850, 130, 130, 1850, 1850, 130, 130, 1850, 1850, 130};
-float yCoordinateDes[20] = {150, 150, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1050, 1050};
+float yCoordinateDes[20] = {135, 135, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1080, 1080};
 
 float segmentArray[20] = {1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5}; // tells us how many segments we should break each path step into
 
@@ -334,6 +334,9 @@ float yDesired = yCoordinateDes[0];
 
 float xPoint[100]; // X points to travel along the line, adjust the size as needed
 float yPoint[100]; // Y points to travel along the line, adjust the size as needed
+
+bool startPath = false;
+bool firstCurrent = false;
 
 /**
  * Private Decleration 
@@ -390,6 +393,9 @@ float pidControl(pidvars* pidName, float error);
 
 bool driveToPosition(float xDesiredPoisition, float yDesiredPosition);
 void drivePoints(float xCoordinate, float yCoordinate, float xDesired, float yDesired, int n);
+
+void appendSerial();
+void printDataToSerial();
 
 /**
  * Set up
@@ -569,7 +575,7 @@ float HC_SR04_range()
     pulse_width = t2 - t1;
     if (pulse_width > (MAX_DIST + 1000)) {
       BluetoothSerial.println("HC-SR04: Out of range");
-      return;
+      return -1.0;
     }
   }
 
@@ -586,7 +592,7 @@ float HC_SR04_range()
   if (pulse_width > MAX_DIST) 
   {
     BluetoothSerial.println("HC-SR04: Out of range");
-    return -1;
+    return -1.0;
   }
 
   return cm;
@@ -796,6 +802,7 @@ STATE driveToCorner()
 
 STATE drivepathway()
 {
+  startPath = true;
   if (driveToPosition(xDesired, yDesired)){ // Will output true if the robot has reached the current desired position
     segmentStep++;
     xDesired = xPoint[segmentStep];
@@ -810,11 +817,6 @@ STATE drivepathway()
       xDesired = xPoint[0];
       yDesired = yPoint[0];
     }
-    BluetoothSerial.print("X-Position ");
-    BluetoothSerial.println(xDesired);
-    BluetoothSerial.print("Y-Position ");
-    BluetoothSerial.println(yDesired);
-    BluetoothSerial.println();
 
     if (pathStep >= 20)
     {
@@ -830,7 +832,8 @@ STATE stopped() {
   disable_motors();
   slow_flash_LED_builtin();
 
-  BluetoothSerial.println("STOPPED HA"); 
+  BluetoothSerial.println("STOPPED HA"); delay(20);
+  printDataToSerial();
 
   while(1)
   {
@@ -1024,8 +1027,31 @@ void updateCoordinates()
     //dont update y coordinate.
   }
 
-  xCoordinate = 2000 - ((10 * HC_SR04_range()) + 105);
-  appendSerial();
+  float distance = HC_SR04_range();
+
+  if (distance == -1)
+  {
+    distance = 1850;
+  }
+
+  if (firstCurrent == false)
+  {
+    firstCurrent = true;
+    currentDist = HC_SR04_range();
+  }
+
+  // Check if the distance is within the allowed range
+  if(abs(abs(currentDist) - abs(distance)) < 70) 
+  {
+    xCoordinate = 2000 - ((10 * distance) + 105);    
+  }
+
+  currentDist = distance;
+
+  if (startPath == true)
+  {
+    appendSerial();
+  }
 }
 // ----------------------Control System------------------------
 
@@ -1087,14 +1113,6 @@ float pidControl(pidvars* pidName, float error){
 
   // store previous error
   pidName->eprev = error;
-
-  if (pidName->mPIDCONTROL == XCONTROL)
-  {
-    if(nonBlockingDelay(&mNonBlockingPrint.lastUpdateTime, 200))
-    {
-      BluetoothSerial.println(dedt);
-    }
-  }
 
   if ((abs(error) < abs(pidName->minError)))
   {
@@ -1325,7 +1343,7 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
         currentAngle = 0;
       }
 
-      if (pathStep == 2 || pathStep == 6 || pathStep == 10 || pathStep == 14)
+      if (pathStep == 2 || pathStep == 6 || pathStep == 10 || pathStep == 14 || pathStep == 18)
       {
         forward();
         delay(400);
@@ -1358,35 +1376,27 @@ void drivePoints(float xCoordinate, float yCoordinate, float xDesired, float yDe
     VARIABLES/DECLARATIONS FOR PRINTING
 */
 bool finished = true; // set to true when the run is finished
-float valuesPerPoint = 15; // represents the number of values it takes the average per point
-float iterationValue = 0; // changes to show how many iterations have occured.
+int valuesPerPoint = 2; // represents the number of values it takes the average per point
+int iterationValue = 0; // changes to show how many iterations have occured.
 int arrI = 0;
 
-const int arrayLength = 1000; // represents the maximum number of points in the run.
+const int arrayLength = 500; // represents the maximum number of points in the run.
 float xCoordinatesArray[arrayLength];
 float yCoordinatesArray[arrayLength];
 unsigned long timesArray[arrayLength];
 
-float xCoordinate = 0;
-float yCoordinate = 0;
 float theTime = 1;
-
-void appendSerial();
-void printDataToSerial();
 
 //unsigned long initialTime = millis(); // call initialTime = millis(); at beginning of run
 
 void appendSerial(){ // call this every time coordinates are updated.
   iterationValue++;
-  xCoordinatesArray[arrI] = xCoordinatesArray[arrI] + xCoordinate;
-  yCoordinatesArray[arrI] = yCoordinatesArray[arrI] + yCoordinate;
-  timesArray[arrI] = micros();
 
   if (((int)iterationValue % (int)(valuesPerPoint))==0){ // average the values
-    xCoordinatesArray[arrI] = xCoordinatesArray[arrI]/valuesPerPoint;
+    xCoordinatesArray[arrI] = xCoordinate;
     //printf( "Average them!! \n" );
-    yCoordinatesArray[arrI] = yCoordinatesArray[arrI]/valuesPerPoint;
-    timesArray[arrI] = timesArray[arrI]/valuesPerPoint;
+    yCoordinatesArray[arrI] = yCoordinate;
+    timesArray[arrI] = micros();
     arrI++;
   }
 }
@@ -1394,16 +1404,17 @@ void appendSerial(){ // call this every time coordinates are updated.
 // To test this functionality. Uncomment all other serial prints
 void printDataToSerial(){ // Prints x,y,time data to serial in csv format.
   if (finished){
-      Serial.println("x_coordinate,y_coordinate,time");
+      BluetoothSerial.println("x_coordinate,y_coordinate,time"); delay(20);
     for (int i = 0; i < arrayLength; i++){
-        if ((xCoordinatesArray[i]==0)&&(yCoordinatesArray[i]==0)&&(timesArray[i]==0)){
+        if ((xCoordinatesArray[i]==0)&&(yCoordinatesArray[i]==0)&&timesArray[i] == 0){
           break;
       }
-        BluetoothSerial.print(xCoordinatesArray[i], 2);
-        BluetoothSerial.print(",");
-        BluetoothSerial.print(yCoordinatesArray[i], 2);
-        BluetoothSerial.print(",");
-        BluetoothSerial.println(timesArray[i], 2); 
+        BluetoothSerial.print(xCoordinatesArray[i], 2); delay(20);
+        BluetoothSerial.print(","); delay(20);
+        BluetoothSerial.print(yCoordinatesArray[i], 2); delay(20);
+        BluetoothSerial.print(","); delay(20);
+        // BluetoothSerial.println(timesArray[i], 2); 
+        BluetoothSerial.println(timesArray[i]); delay(20);
     }
   }
   else{
