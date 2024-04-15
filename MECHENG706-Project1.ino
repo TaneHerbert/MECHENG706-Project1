@@ -1365,7 +1365,7 @@ void appendSerial(){ // call this every time coordinates are updated.
 // To test this functionality. Uncomment all other serial prints
 void printDataToSerial(){ // Prints x,y,time data to serial in csv format.
   if (finished){
-      Serial.println("x_coordinate (mm),y_coordinate (mm),time (ms)");
+      Serial.println("x_coordinate,y_coordinate,time");
     for (int i = 0; i < arrayLength; i++){
         if ((xCoordinatesArray[i]==0)&&(yCoordinatesArray[i]==0)&&(timesArray[i]==0)){
           break;
