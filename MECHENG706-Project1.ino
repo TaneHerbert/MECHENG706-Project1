@@ -1352,3 +1352,60 @@ void drivePoints(float xCoordinate, float yCoordinate, float xDesired, float yDe
     yPoint[z - 1] = yCoordinate + yStep * z;
   } 
 }
+
+/*
+    VARIABLES/DECLARATIONS FOR PRINTING
+*/
+bool finished = true; // set to true when the run is finished
+float valuesPerPoint = 15; // represents the number of values it takes the average per point
+float iterationValue = 0; // changes to show how many iterations have occured.
+int arrI = 0;
+
+const int arrayLength = 1000; // represents the maximum number of points in the run.
+float xCoordinatesArray[arrayLength];
+float yCoordinatesArray[arrayLength];
+unsigned long timesArray[arrayLength];
+
+float xCoordinate = 0;
+float yCoordinate = 0;
+float theTime = 1;
+
+void appendSerial();
+void printDataToSerial();
+
+//unsigned long initialTime = millis(); // call initialTime = millis(); at beginning of run
+
+void appendSerial(){ // call this every time coordinates are updated.
+  iterationValue++;
+  xCoordinatesArray[arrI] = xCoordinatesArray[arrI] + xCoordinate;
+  yCoordinatesArray[arrI] = yCoordinatesArray[arrI] + yCoordinate;
+  timesArray[arrI] = micros();
+
+  if (((int)iterationValue % (int)(valuesPerPoint))==0){ // average the values
+    xCoordinatesArray[arrI] = xCoordinatesArray[arrI]/valuesPerPoint;
+    //printf( "Average them!! \n" );
+    yCoordinatesArray[arrI] = yCoordinatesArray[arrI]/valuesPerPoint;
+    timesArray[arrI] = timesArray[arrI]/valuesPerPoint;
+    arrI++;
+  }
+}
+
+// To test this functionality. Uncomment all other serial prints
+void printDataToSerial(){ // Prints x,y,time data to serial in csv format.
+  if (finished){
+      Serial.println("x_coordinate,y_coordinate,time");
+    for (int i = 0; i < arrayLength; i++){
+        if ((xCoordinatesArray[i]==0)&&(yCoordinatesArray[i]==0)&&(timesArray[i]==0)){
+          break;
+      }
+        BluetoothSerial.print(xCoordinatesArray[i], 2);
+        BluetoothSerial.print(",");
+        BluetoothSerial.print(yCoordinatesArray[i], 2);
+        BluetoothSerial.print(",");
+        BluetoothSerial.println(timesArray[i], 2); 
+    }
+  }
+  else{
+      BluetoothSerial.println( "The run is not complete");
+  }
+}
