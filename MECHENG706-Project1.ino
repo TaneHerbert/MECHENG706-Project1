@@ -280,7 +280,7 @@ pidvars aVar =
   .eprev = 0,
   .eintegral = 0,
   .integralLimit = 100,
-  .kp = 0.26,
+  .kp = 0.28,
   .ki = 0.0, // 0.343
   .kd = 0.01, // 1.21
   .prevT = 0, 
@@ -323,7 +323,7 @@ int pathStep = 0;
 int segmentStep = 0;
 
 float xCoordinateDes[20] = {100, 1850, 1850, 130, 130, 1850, 1850, 130, 130, 1850, 1850, 130, 130, 1850, 1850, 130, 130, 1850, 1850, 130};
-float yCoordinateDes[20] = {140, 140, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1080, 1080};
+float yCoordinateDes[20] = {150, 150, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1050, 1050};
 
 float segmentArray[20] = {1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5}; // tells us how many segments we should break each path step into
 
@@ -1002,7 +1002,7 @@ void updateCoordinates()
 
   if (startPath == true)
   {
-    appendSerial();
+    // appendSerial();
   }
 }
 // ----------------------Control System------------------------
@@ -1163,7 +1163,7 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
     aVar.prevT = millis();
   }
 
-  if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 80)) // Run straight every 50 ms
+  if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 15)) // Run straight every 50 ms
   {
     return false;
   }
