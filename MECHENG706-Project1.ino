@@ -144,10 +144,10 @@ const unsigned int MAX_DIST = 23200;
 // Motor Speed
 int speed_val = 100;
 
-Servo left_font_motor;   // create servo object to control Vex Motor Controller 29
+Servo left_front_motor;   // create servo object to control Vex Motor Controller 29
 Servo left_rear_motor;   // create servo object to control Vex Motor Controller 29
 Servo right_rear_motor;  // create servo object to control Vex Motor Controller 29
-Servo right_font_motor;  // create servo object to control Vex Motor Controller 29
+Servo right_front_motor;  // create servo object to control Vex Motor Controller 29
 
 SoftwareSerial BluetoothSerial(BLUETOOTH_RX, BLUETOOTH_TX);
 
@@ -451,10 +451,10 @@ void loop(void)  //main loop
 
 void disable_motors()
 {
-  left_font_motor.detach();  // detach the servo on pin left_front to turn Vex Motor Controller 29 Off
+  left_front_motor.detach();  // detach the servo on pin left_front to turn Vex Motor Controller 29 Off
   left_rear_motor.detach();  // detach the servo on pin left_rear to turn Vex Motor Controller 29 Off
   right_rear_motor.detach(); // detach the servo on pin right_rear to turn Vex Motor Controller 29 Off
-  right_font_motor.detach(); // detach the servo on pin right_front to turn Vex Motor Controller 29 Off
+  right_front_motor.detach(); // detach the servo on pin right_front to turn Vex Motor Controller 29 Off
 
   pinMode(left_front, INPUT);
   pinMode(left_rear, INPUT);
@@ -464,65 +464,65 @@ void disable_motors()
 
 void enable_motors()
 {
-  left_font_motor.attach(left_front);   // attaches the servo on pin left_front to turn Vex Motor Controller 29 On
+  left_front_motor.attach(left_front);   // attaches the servo on pin left_front to turn Vex Motor Controller 29 On
   left_rear_motor.attach(left_rear);    // attaches the servo on pin left_rear to turn Vex Motor Controller 29 On
   right_rear_motor.attach(right_rear);  // attaches the servo on pin right_rear to turn Vex Motor Controller 29 On
-  right_font_motor.attach(right_front); // attaches the servo on pin right_front to turn Vex Motor Controller 29 On
+  right_front_motor.attach(right_front); // attaches the servo on pin right_front to turn Vex Motor Controller 29 On
 }
 void stop()
 {
-  left_font_motor.writeMicroseconds(1500);
+  left_front_motor.writeMicroseconds(1500);
   left_rear_motor.writeMicroseconds(1500);
   right_rear_motor.writeMicroseconds(1500);
-  right_font_motor.writeMicroseconds(1500);
+  right_front_motor.writeMicroseconds(1500);
 }
 
 void forward()
 {
-  left_font_motor.writeMicroseconds(1500 + speed_val);
+  left_front_motor.writeMicroseconds(1500 + speed_val);
   left_rear_motor.writeMicroseconds(1500 + speed_val);
   right_rear_motor.writeMicroseconds(1500 - speed_val);
-  right_font_motor.writeMicroseconds(1500 - speed_val);
+  right_front_motor.writeMicroseconds(1500 - speed_val);
 }
 
 void reverse()
 {
-  left_font_motor.writeMicroseconds(1500 - speed_val);
+  left_front_motor.writeMicroseconds(1500 - speed_val);
   left_rear_motor.writeMicroseconds(1500 - speed_val);
   right_rear_motor.writeMicroseconds(1500 + speed_val);
-  right_font_motor.writeMicroseconds(1500 + speed_val);
+  right_front_motor.writeMicroseconds(1500 + speed_val);
 }
 
 void ccw()
 {
-  left_font_motor.writeMicroseconds(1500 - speed_val);
+  left_front_motor.writeMicroseconds(1500 - speed_val);
   left_rear_motor.writeMicroseconds(1500 - speed_val);
   right_rear_motor.writeMicroseconds(1500 - speed_val);
-  right_font_motor.writeMicroseconds(1500 - speed_val);
+  right_front_motor.writeMicroseconds(1500 - speed_val);
 }
 
 void cw()
 {
-  left_font_motor.writeMicroseconds(1500 + speed_val);
+  left_front_motor.writeMicroseconds(1500 + speed_val);
   left_rear_motor.writeMicroseconds(1500 + speed_val);
   right_rear_motor.writeMicroseconds(1500 + speed_val);
-  right_font_motor.writeMicroseconds(1500 + speed_val);
+  right_front_motor.writeMicroseconds(1500 + speed_val);
 }
 
 void strafe_left()
 {
-  left_font_motor.writeMicroseconds(1500 - speed_val);
+  left_front_motor.writeMicroseconds(1500 - speed_val);
   left_rear_motor.writeMicroseconds(1500 + speed_val);
   right_rear_motor.writeMicroseconds(1500 + speed_val);
-  right_font_motor.writeMicroseconds(1500 - speed_val);
+  right_front_motor.writeMicroseconds(1500 - speed_val);
 }
 
 void strafe_right()
 {
-  left_font_motor.writeMicroseconds(1500 + speed_val);
+  left_front_motor.writeMicroseconds(1500 + speed_val);
   left_rear_motor.writeMicroseconds(1500 - speed_val);
   right_rear_motor.writeMicroseconds(1500 - speed_val);
-  right_font_motor.writeMicroseconds(1500 + speed_val);
+  right_front_motor.writeMicroseconds(1500 + speed_val);
 }
 
 // ----------------------Sonar------------------------
@@ -673,7 +673,12 @@ STATE orientateRobot() {
   if (!validOrientation){
     if (abs(abs(currentAngle) - abs(prevAngle)) >= 3) // Check orientation every 9 degrees turned
     {
-      currentDist = HC_SR04_range(); //measure current sonar distance
+      float distance = HC_SR04_range();
+      if (distance != -1)
+      {
+        currentDist = distance; //measure current sonar distance
+      }
+
       getIRDistance(&IR_BL_UNLIMITED); //measure distances for long range sensors on either side
       getIRDistance(&IR_FR_UNLIMITED);
 
@@ -703,8 +708,13 @@ STATE alignAtWall(){
   speed_val = 300;
   reverse();
 
-  //Measure distance
-  currentDist = HC_SR04_range() * 10;
+  float distance = HC_SR04_range();
+
+  if (distance != -1)
+  {
+    //Measure distance
+    currentDist = distance * 10;
+  }
 
   if (currentDist < 1750){
     //if has not reached wall, keep driving forward
@@ -753,8 +763,8 @@ STATE driveToCorner()
   float yVelocity = pidControl(&alignVar, yError);
   inverseKinematics(-380, yVelocity, 0);
 
-  left_font_motor.writeMicroseconds(1500 + angVelArray[0]);
-  right_font_motor.writeMicroseconds(1500 - angVelArray[1]);
+  left_front_motor.writeMicroseconds(1500 + angVelArray[0]);
+  right_front_motor.writeMicroseconds(1500 - angVelArray[1]);
   left_rear_motor.writeMicroseconds(1500 + angVelArray[2]);
   right_rear_motor.writeMicroseconds(1500 - angVelArray[3]);
 
@@ -856,6 +866,8 @@ void GyroSetup()
 // TODO: ALWAYS THINKS T = 100 when in fact could be slightly above or below. Need to get actual difference from non blocking delay
 void getCurrentAngle() 
 {
+  unsigned long time = millis() - mNonBlockingTimerGyro.lastUpdateTime;
+
   if (!nonBlockingDelay(&mNonBlockingTimerGyro.lastUpdateTime, T))
   {
     return;
@@ -870,7 +882,7 @@ void getCurrentAngle()
   // if the angular velocity is less than the threshold, ignore it
   if (abs(angularVelocity) >= rotationThreshold) {
     // we are running a loop in T (of T/1000 second).
-    float angleChange = angularVelocity / (1000 / T);
+    float angleChange = angularVelocity / (1000 / time);
     currentAngle += angleChange;
 
     // Accumulate the angle change
@@ -1168,71 +1180,14 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
     angleError = currentAngle - 360; // Moving clockwise to reach 0
   }
 
-  // BluetoothSerial.print("X-Error: ");
-  // delay(20);
-  // BluetoothSerial.println(xError);
-  // delay(20);
-  // BluetoothSerial.print("Y-Error: ");
-  // delay(20);
-  // BluetoothSerial.println(yError);
-  // delay(20);
-  // BluetoothSerial.print("Angle-error: ");
-  // delay(20);
-  // BluetoothSerial.println(angleError);
-  // delay(20);
-  // BluetoothSerial.println();
-
   float xVelocity = pidControl(&xVar, xError);
   float yVelocity = pidControl(&yVar, yError);
   float aVelocity = pidControl(&aVar, angleError);
 
-  // if (nonBlockingDelay(&mNonBlockingPrint.lastUpdateTime, 2000)) // Run straight every 50 ms
-  // {
-  //   BluetoothSerial.print("X-coordinate ");
-  //   delay(20);
-  //   BluetoothSerial.println(xCoordinate);     delay(20);
-  //   BluetoothSerial.print("Y-coordinate ");    delay(20);
-  //   BluetoothSerial.println(yCoordinate);    delay(20);
-  //   BluetoothSerial.print("X-Leave ");    delay(20);
-  //   BluetoothSerial.println(xVar.withinError);    delay(20);
-  //   BluetoothSerial.print("Y-Leave ");    delay(20);
-  //   BluetoothSerial.println(yVar.withinError);    delay(20);
-  // }
-
-  // BluetoothSerial.print("X-Velocity: ");
-  // delay(20);
-  // BluetoothSerial.println(xVelocity);
-  // delay(20);
-  // BluetoothSerial.print("Y-Velocity: ");
-  // delay(20);
-  // BluetoothSerial.println(yVelocity);
-  // delay(20);
-  // BluetoothSerial.print("Z-Velocity: ");
-  // delay(20);
-  // BluetoothSerial.println(aVelocity);
-  // delay(20);
-
   inverseKinematics(xVelocity, yVelocity, aVelocity);
 
-  // BluetoothSerial.print("Motor 1: ");
-  // delay(20);
-  // BluetoothSerial.println(angVelArray[0]);
-  // delay(20);
-  // BluetoothSerial.print("Motor 2: ");
-  // delay(20);
-  // BluetoothSerial.println(-1 * angVelArray[1]);
-  // delay(20);
-  // BluetoothSerial.print("Motor 3: ");
-  // delay(20);
-  // BluetoothSerial.println(angVelArray[2]);
-  // delay(20);
-  // BluetoothSerial.print("Motor 4: ");
-  // delay(20);
-  // BluetoothSerial.println(-1 * angVelArray[3]);
-  // delay(20);
-
-  left_font_motor.writeMicroseconds(1500 + angVelArray[0]);
-  right_font_motor.writeMicroseconds(1500 - angVelArray[1]);
+  left_front_motor.writeMicroseconds(1500 + angVelArray[0]);
+  right_front_motor.writeMicroseconds(1500 - angVelArray[1]);
   left_rear_motor.writeMicroseconds(1500 + angVelArray[2]);
   right_rear_motor.writeMicroseconds(1500 - angVelArray[3]);
 
@@ -1315,7 +1270,7 @@ void drivePoints(float xCoordinate, float yCoordinate, float xDesired, float yDe
 /*
     VARIABLES/DECLARATIONS FOR PRINTING
 */
-bool finished = true; // set to true when the run is finished
+
 int valuesPerPoint = 2; // represents the number of values it takes the average per point
 int iterationValue = 0; // changes to show how many iterations have occured.
 int arrI = 0;
@@ -1324,10 +1279,6 @@ const int arrayLength = 500; // represents the maximum number of points in the r
 float xCoordinatesArray[arrayLength];
 float yCoordinatesArray[arrayLength];
 unsigned long timesArray[arrayLength];
-
-float theTime = 1;
-
-//unsigned long initialTime = millis(); // call initialTime = millis(); at beginning of run
 
 void appendSerial(){ // call this every time coordinates are updated.
   iterationValue++;
@@ -1342,20 +1293,16 @@ void appendSerial(){ // call this every time coordinates are updated.
 
 // To test this functionality. Uncomment all other serial prints
 void printDataToSerial(){ // Prints x,y,time data to serial in csv format.
-  if (finished){
-      BluetoothSerial.println("x_coordinate,y_coordinate,time"); delay(20);
-    for (int i = 0; i < arrayLength; i++){
-        if ((xCoordinatesArray[i]==0)&&(yCoordinatesArray[i]==0)&&timesArray[i] == 0){
-          break;
-      }
-        BluetoothSerial.print(xCoordinatesArray[i], 2); delay(20);
-        BluetoothSerial.print(","); delay(20);
-        BluetoothSerial.print(yCoordinatesArray[i], 2); delay(20);
-        BluetoothSerial.print(","); delay(20);
-        BluetoothSerial.println(timesArray[i]); delay(20);
+  BluetoothSerial.println("x_coordinate,y_coordinate,time"); delay(20);
+  for (int i = 0; i < arrayLength; i++){
+    if ((xCoordinatesArray[i]==0)&&(yCoordinatesArray[i]==0)&&timesArray[i] == 0)
+    {
+      break;
     }
-  }
-  else{
-      BluetoothSerial.println( "The run is not complete");
+    BluetoothSerial.print(xCoordinatesArray[i], 2); delay(20);
+    BluetoothSerial.print(","); delay(20);
+    BluetoothSerial.print(yCoordinatesArray[i], 2); delay(20);
+    BluetoothSerial.print(","); delay(20);
+    BluetoothSerial.println(timesArray[i]); delay(20);
   }
 }
