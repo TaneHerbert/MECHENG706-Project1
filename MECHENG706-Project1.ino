@@ -1342,9 +1342,6 @@ float xCoordinate = 0;
 float yCoordinate = 0;
 float theTime = 1;
 
-//int precision = 4;
-//float initialTime = 69;
-
 void appendSerial();
 void printDataToSerial();
 
@@ -1363,7 +1360,6 @@ void appendSerial(){ // call this every time coordinates are updated.
     timesArray[arrI] = timesArray[arrI]/valuesPerPoint;
     arrI++;
   }
-  
 }
 
 // To test this functionality. Uncomment all other serial prints
