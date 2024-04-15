@@ -265,7 +265,7 @@ pidvars yVar_YTravel =
   .eprev = 0,
   .eintegral = 0,
   .integralLimit = 200,
-  .kp = 2.5,
+  .kp = 3.5,
   .ki = 0.205, // 0.205
   .kd = 0.1,  // 1.04
   .prevT = 0,
@@ -282,9 +282,9 @@ pidvars yVar_XTravel =
   .eprev = 0,
   .eintegral = 0,
   .integralLimit = 200,
-  .kp = 1.0,
-  .ki = 0.0, // 0.205
-  .kd = 0.0,  // 1.04
+  .kp = 1.3,
+  .ki = 0.1, // 0.205
+  .kd = 0.1,  // 1.04
   .prevT = 0,
   .breakOutTime = 50,
   .prevBreakOutTime = 0,
@@ -299,14 +299,14 @@ pidvars aVar =
   .eprev = 0,
   .eintegral = 0,
   .integralLimit = 100,
-  .kp = 0.25,
-  .ki = 0.0, // 0.343
+  .kp = 0.33,
+  .ki = 0.15, // 0.343
   .kd = 0.01, // 1.21
   .prevT = 0, 
   .breakOutTime = 20,
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 1.0,
+  .minError = 20.0,
 };
 
 //Alignment PID variables
@@ -541,10 +541,10 @@ void strafe_right()
 // ----------------------Sonar------------------------
 float HC_SR04_range()
 {
-  // if (!nonBlockingDelay(&mNonBlockingSonar.lastUpdateTime, 50))
-  // {
-  //   return;
-  // }
+  if (!nonBlockingDelay(&mNonBlockingSonar.lastUpdateTime, 50))
+  {
+    return;
+  }
 
   unsigned long t1;
   unsigned long t2;
@@ -719,7 +719,7 @@ STATE alignAtWall(){
   //Measure distance
   currentDist = HC_SR04_range() * 10;
 
-  if (currentDist < 1750){
+  if (currentDist < 1700){
     //if has not reached wall, keep driving forward
     return ALIGNATWALL;
   }
@@ -1227,7 +1227,7 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
       check++;
     }
     
-    if (breakOutTimerPID(&yVar_YTravel.prevBreakOutTime, yVar_YTravel.breakOutTime) || breakOutTimerPID(&yVar_XTravel.prevBreakOutTime, yVar_XTravel.breakOutTime))
+    if ((breakOutTimerPID(&yVar_YTravel.prevBreakOutTime, yVar_YTravel.breakOutTime) && yVar_YTravel.withinError == true) || (breakOutTimerPID(&yVar_XTravel.prevBreakOutTime, yVar_XTravel.breakOutTime) && yVar_XTravel.withinError == true))
     {
       check++;
     }
@@ -1253,6 +1253,11 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
       xVar.prevT = 0;
       yVar_YTravel.prevT = 0;
       yVar_XTravel.prevT = 0;
+
+      aVar.withinError = false;
+      yVar_XTravel.withinError = false;
+      yVar_YTravel.withinError = false;
+      xVar.withinError = false;
 
       if (pathStep == 4 || pathStep == 8 || pathStep == 12 || pathStep == 16)
       {
@@ -1282,3 +1287,4 @@ void drivePoints(float xCoordinate, float yCoordinate, float xDesired, float yDe
     yPoint[z - 1] = yCoordinate + yStep * z;
   } 
 }
+
