@@ -111,8 +111,8 @@ struct pidvars
   */
 
 // Global Coordinate based variables:
-float xCoordinate;
-float yCoordinate;
+float xCoordinate[3]; // xCoordinate[2] is current iteration, xCoordinate[1] is previous, xCoordinate[0] is 2 previous.
+float yCoordinate[3];
 int robotDirection; // (0 = sonar facing wall to start), (1 = sonar facing away from wall to start)
 
 // Time of one loop, 0.07 s (GYRO)
