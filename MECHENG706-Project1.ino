@@ -15,8 +15,6 @@
   * Public Defines
   */
 
-#define NO_BATTERY_V_OK // Uncomment of BATTERY_V_OK if you do not care about battery damage.
-
 #define STARTUP_DELAY 1 // Seconds
 
 #define MAX_SONARDIST_CM 200
@@ -447,14 +445,6 @@ void loop(void)  //main loop
    * Methods that must run every loop 
    */
   getCurrentAngle(); // This function must run every 70ms so is placed outside the FSM
-
-  #ifndef NO_BATTERY_V_OK
-  if (!is_battery_voltage_OK())
-  {
-    BluetoothSerial.println("BATTERY FAILURE");
-    machine_state = STOPPED;
-  }
-  #endif
 }
 
 //----------------------Motor moments------------------------
@@ -540,7 +530,7 @@ float HC_SR04_range()
 {
   if (!nonBlockingDelay(&mNonBlockingSonar.lastUpdateTime, 50))
   {
-    return;
+    return -1.0;
   }
 
   unsigned long t1;
@@ -562,7 +552,7 @@ float HC_SR04_range()
     pulse_width = t2 - t1;
     if (pulse_width > (MAX_DIST + 1000)) {
       BluetoothSerial.println("HC-SR04: NOT found");
-      return;
+      return -1.0;
     }
   }
 
@@ -843,54 +833,6 @@ STATE stopped() {
   return STOPPED;
 }
 
-// ----------------------Battery Checker------------------------
-
-#ifndef NO_BATTERY_V_OK
-boolean is_battery_voltage_OK()
-{
-  static byte Low_voltage_counter;
-  static unsigned long previous_millis;
-
-  int Lipo_level_cal;
-  int raw_lipo;
-  //the voltage of a LiPo cell depends on its chemistry and varies from about 3.5V (discharged) = 717(3.5V Min) https://oscarliang.com/lipo-battery-guide/
-  //to about 4.20-4.25V (fully charged) = 860(4.2V Max)
-  //Lipo Cell voltage should never go below 3V, So 3.5V is a safety factor.
-  raw_lipo = analogRead(A0);
-  Lipo_level_cal = (raw_lipo - 717);
-  Lipo_level_cal = Lipo_level_cal * 100;
-  Lipo_level_cal = Lipo_level_cal / 143;
-
-  if (Lipo_level_cal > 0 && Lipo_level_cal < 160) {
-    previous_millis = millis();
-    BluetoothSerial.print("Lipo level:");
-    BluetoothSerial.print(Lipo_level_cal);
-    BluetoothSerial.print("%");
-    BluetoothSerial.println("");
-    
-    Low_voltage_counter = 0;
-    return true;
-  } else {
-    if (Lipo_level_cal < 0)
-      BluetoothSerial.println("Lipo is Disconnected or Power Switch is turned OFF!!!");
-    else if (Lipo_level_cal > 160)
-      BluetoothSerial.println("!Lipo is Overchanged!!!");
-    else {
-      BluetoothSerial.println("Lipo voltage too LOW, any lower and the lipo with be damaged");
-      BluetoothSerial.print("Please Re-charge Lipo:");
-      BluetoothSerial.print(Lipo_level_cal);
-      BluetoothSerial.println("%");
-    }
-
-    Low_voltage_counter++;
-    if (Low_voltage_counter > 5)
-      return false;
-    else
-      return true;
-  }
-}
-#endif
-
 // ----------------------Gyro------------------------
 
 void GyroSetup() 
@@ -1029,24 +971,22 @@ void updateCoordinates()
 
   float distance = HC_SR04_range();
 
-  if (distance == -1)
+  if (distance != -1.0)
   {
-    distance = 1850;
-  }
+    if (firstCurrent == false)
+    {
+      firstCurrent = true;
+      currentDist = HC_SR04_range();
+    }
 
-  if (firstCurrent == false)
-  {
-    firstCurrent = true;
-    currentDist = HC_SR04_range();
-  }
+    // Check if the distance is within the allowed range
+    if(abs(abs(currentDist) - abs(distance)) < 70) 
+    {
+      xCoordinate = 2000 - ((10 * distance) + 105);    
+    }
 
-  // Check if the distance is within the allowed range
-  if(abs(abs(currentDist) - abs(distance)) < 70) 
-  {
-    xCoordinate = 2000 - ((10 * distance) + 105);    
+    currentDist = distance;
   }
-
-  currentDist = distance;
 
   if (startPath == true)
   {
@@ -1394,7 +1334,6 @@ void appendSerial(){ // call this every time coordinates are updated.
 
   if (((int)iterationValue % (int)(valuesPerPoint))==0){ // average the values
     xCoordinatesArray[arrI] = xCoordinate;
-    //printf( "Average them!! \n" );
     yCoordinatesArray[arrI] = yCoordinate;
     timesArray[arrI] = micros();
     arrI++;
@@ -1413,7 +1352,6 @@ void printDataToSerial(){ // Prints x,y,time data to serial in csv format.
         BluetoothSerial.print(","); delay(20);
         BluetoothSerial.print(yCoordinatesArray[i], 2); delay(20);
         BluetoothSerial.print(","); delay(20);
-        // BluetoothSerial.println(timesArray[i], 2); 
         BluetoothSerial.println(timesArray[i]); delay(20);
     }
   }
