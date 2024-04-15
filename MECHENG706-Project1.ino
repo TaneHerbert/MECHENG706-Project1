@@ -337,9 +337,9 @@ void setup(void)
   pinMode(TRIG_PIN, OUTPUT);
   digitalWrite(TRIG_PIN, LOW);
 
-  BluetoothSerial.begin(115200);
-  BluetoothSerial.println("MECHENG706_CODE");
-  BluetoothSerial.println("Setup....");
+  //BluetoothSerial.begin(115200);
+  //BluetoothSerial.println("MECHENG706_CODE");
+ // BluetoothSerial.println("Setup....");
 
   machine_state = INITIALISING;
 
@@ -376,7 +376,7 @@ void loop(void)  //main loop
   #ifndef NO_BATTERY_V_OK
   if (!is_battery_voltage_OK())
   {
-    BluetoothSerial.println("BATTERY FAILURE");
+   // BluetoothSerial.println("BATTERY FAILURE");
     machine_state = STOPPED;
   }
   #endif
@@ -488,7 +488,7 @@ float HC_SR04_range()
     t2 = micros();
     pulse_width = t2 - t1;
     if (pulse_width > (MAX_DIST + 1000)) {
-      BluetoothSerial.println("HC-SR04: NOT found");
+     // BluetoothSerial.println("HC-SR04: NOT found");
       return;
     }
   }
@@ -501,7 +501,7 @@ float HC_SR04_range()
     t2 = micros();
     pulse_width = t2 - t1;
     if (pulse_width > (MAX_DIST + 1000)) {
-      BluetoothSerial.println("HC-SR04: Out of range");
+      //BluetoothSerial.println("HC-SR04: Out of range");
       return;
     }
   }
@@ -518,7 +518,7 @@ float HC_SR04_range()
   // Print out results
   if (pulse_width > MAX_DIST) 
   {
-    BluetoothSerial.println("HC-SR04: Out of range");
+    //BluetoothSerial.println("HC-SR04: Out of range");
     return -1;
   }
     
@@ -579,7 +579,7 @@ void fast_flash_double_LED_builtin()
 
   // Inititlisations
 STATE initialising() {
-  BluetoothSerial.println("INITIALISING....");
+  //BluetoothSerial.println("INITIALISING....");
 
   enable_motors();
   GyroSetup();  //Set up starting voltage for gyro
@@ -653,15 +653,15 @@ STATE findCorner() {
   BluetoothSerial.println("***************************************** ");delay(20);
   */
 
-  BluetoothSerial.println("Y-Coordinate (measured from IR):");
+  //BluetoothSerial.println("Y-Coordinate (measured from IR):");
   delay(20);
-  BluetoothSerial.println(yCoordinate);
+  //BluetoothSerial.println(yCoordinate);
   delay(20);
-  BluetoothSerial.println("X-Coordinate (measured from SONAR):");
+  //BluetoothSerial.println("X-Coordinate (measured from SONAR):");
   delay(20);
-  BluetoothSerial.println(xCoordinate);
+  //BluetoothSerial.println(xCoordinate);
   delay(20);
-  BluetoothSerial.println();
+  //BluetoothSerial.println();
 
   delay(4000);
 
@@ -910,7 +910,7 @@ STATE stopped() {
   disable_motors();
   slow_flash_LED_builtin();
 
-  BluetoothSerial.println("STOPPED HA"); 
+  //BluetoothSerial.println("STOPPED HA"); 
 
   while(1)
   {
@@ -940,23 +940,23 @@ boolean is_battery_voltage_OK()
 
   if (Lipo_level_cal > 0 && Lipo_level_cal < 160) {
     previous_millis = millis();
-    BluetoothSerial.print("Lipo level:");
-    BluetoothSerial.print(Lipo_level_cal);
-    BluetoothSerial.print("%");
-    BluetoothSerial.println("");
+    //BluetoothSerial.print("Lipo level:");
+    //BluetoothSerial.print(Lipo_level_cal);
+    //BluetoothSerial.print("%");
+    //BluetoothSerial.println("");
     
     Low_voltage_counter = 0;
     return true;
   } else {
     if (Lipo_level_cal < 0)
-      BluetoothSerial.println("Lipo is Disconnected or Power Switch is turned OFF!!!");
+      //BluetoothSerial.println("Lipo is Disconnected or Power Switch is turned OFF!!!");
     else if (Lipo_level_cal > 160)
-      BluetoothSerial.println("!Lipo is Overchanged!!!");
+      //BluetoothSerial.println("!Lipo is Overchanged!!!");
     else {
-      BluetoothSerial.println("Lipo voltage too LOW, any lower and the lipo with be damaged");
-      BluetoothSerial.print("Please Re-charge Lipo:");
-      BluetoothSerial.print(Lipo_level_cal);
-      BluetoothSerial.println("%");
+      //BluetoothSerial.println("Lipo voltage too LOW, any lower and the lipo with be damaged");
+      //BluetoothSerial.print("Please Re-charge Lipo:");
+      //BluetoothSerial.print(Lipo_level_cal);
+     // BluetoothSerial.println("%");
     }
 
     Low_voltage_counter++;
@@ -1142,7 +1142,7 @@ void updateCoordinates()
   //FOR WHEN NO CASES WORKING
   else{
     //print to let them know
-    BluetoothSerial.println("Error, no cases fit");
+    //BluetoothSerial.println("Error, no cases fit");
     // BluetoothSerial.println("BACK LEFT");
     // printBool(IR_BL);
     // BluetoothSerial.println("BACK RIGHT");
@@ -1155,6 +1155,7 @@ void updateCoordinates()
   }
 
   xCoordinate = 2000 - ((10 * HC_SR04_range()) + 122);
+  appendSerial();
 }
 // ----------------------Control System------------------------
 
@@ -1309,17 +1310,78 @@ float getIRDistance(IRSensor* mIRSensor)
 
 void printBool(IRSensor mIRSensor)
 {
-  BluetoothSerial.print("Is too close: ");
+  //BluetoothSerial.print("Is too close: ");
   delay(20);
-  BluetoothSerial.println(mIRSensor.isTooClose);
+ // BluetoothSerial.println(mIRSensor.isTooClose);
   delay(20);
-  BluetoothSerial.print("Is too far: ");
+ // BluetoothSerial.print("Is too far: ");
   delay(20);
-  BluetoothSerial.println(mIRSensor.isTooFar);
+ // BluetoothSerial.println(mIRSensor.isTooFar);
   delay(20);
-  BluetoothSerial.print("Is in Range: ");
+ /// BluetoothSerial.print("Is in Range: ");
   delay(20);
-  BluetoothSerial.println(mIRSensor.isInRange);
+// BluetoothSerial.println(mIRSensor.isInRange);
   delay(20);
-  BluetoothSerial.println();
+//  BluetoothSerial.println();
+}
+
+/*
+    VARIABLES/DECLARATIONS FOR PRINTING
+*/
+bool finished = true; // set to true when the run is finished
+float valuesPerPoint = 15; // represents the number of values it takes the average per point
+float iterationValue = 0; // changes to show how many iterations have occured.
+int arrI = 0;
+
+const int arrayLength = 1000; // represents the maximum number of points in the run.
+float xCoordinatesArray[arrayLength];
+float yCoordinatesArray[arrayLength];
+unsigned long timesArray[arrayLength];
+
+float xCoordinate = 0;
+float yCoordinate = 0;
+float theTime = 1;
+
+//int precision = 4;
+//float initialTime = 69;
+
+void appendSerial();
+void printDataToSerial();
+
+//unsigned long initialTime = millis(); // call initialTime = millis(); at beginning of run
+
+void appendSerial(){ // call this every time coordinates are updated.
+  iterationValue++;
+  xCoordinatesArray[arrI] = xCoordinatesArray[arrI] + xCoordinate;
+  yCoordinatesArray[arrI] = yCoordinatesArray[arrI] + yCoordinate;
+  timesArray[arrI] = micros();
+
+  if (((int)iterationValue % (int)(valuesPerPoint))==0){ // average the values
+    xCoordinatesArray[arrI] = xCoordinatesArray[arrI]/valuesPerPoint;
+    //printf( "Average them!! \n" );
+    yCoordinatesArray[arrI] = yCoordinatesArray[arrI]/valuesPerPoint;
+    timesArray[arrI] = timesArray[arrI]/valuesPerPoint;
+    arrI++;
+  }
+  
+}
+
+// To test this functionality. Uncomment all other serial prints
+void printDataToSerial(){ // Prints x,y,time data to serial in csv format.
+  if (finished){
+      Serial.println("x_coordinate (mm),y_coordinate (mm),time (ms)");
+    for (int i = 0; i < arrayLength; i++){
+        if ((xCoordinatesArray[i]==0)&&(yCoordinatesArray[i]==0)&&(timesArray[i]==0)){
+          break;
+      }
+        BluetoothSerial.print(xCoordinatesArray[i], 2);
+        BluetoothSerial.print(",");
+        BluetoothSerial.print(yCoordinatesArray[i], 2);
+        BluetoothSerial.print(",");
+        BluetoothSerial.println(timesArray[i], 2); 
+    }
+  }
+  else{
+      BluetoothSerial.println( "The run is not complete");
+  }
 }
