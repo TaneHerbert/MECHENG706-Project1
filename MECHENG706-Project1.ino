@@ -15,8 +15,6 @@
   * Public Defines
   */
 
-#define NO_BATTERY_V_OK // Uncomment of BATTERY_V_OK if you do not care about battery damage.
-
 #define STARTUP_DELAY 1 // Seconds
 
 #define MAX_SONARDIST_CM 200
@@ -146,6 +144,8 @@ const unsigned int MAX_DIST = 23200;
 // Motor Speed
 int speed_val = 100;
 
+bool X_TRAVELLING = false;
+
 Servo left_font_motor;   // create servo object to control Vex Motor Controller 29
 Servo left_rear_motor;   // create servo object to control Vex Motor Controller 29
 Servo right_rear_motor;  // create servo object to control Vex Motor Controller 29
@@ -258,8 +258,8 @@ pidvars xVar =
   .minError = 60,
 };
 
-//y coord PID variables
-pidvars yVar = 
+// Y TAVELLING
+pidvars yVar_YTravel = 
 {
   .mPIDCONTROL = YCONTROL,
   .eprev = 0,
@@ -275,6 +275,23 @@ pidvars yVar =
   .minError = 20, // was 30
 };
 
+// X TRAVELLING
+pidvars yVar_XTravel = 
+{
+  .mPIDCONTROL = YCONTROL,
+  .eprev = 0,
+  .eintegral = 0,
+  .integralLimit = 200,
+  .kp = 1.0,
+  .ki = 0.0, // 0.205
+  .kd = 0.0,  // 1.04
+  .prevT = 0,
+  .breakOutTime = 50,
+  .prevBreakOutTime = 0,
+  .withinError = false,
+  .minError = 20, // was 30
+};
+
 //angular PID variables
 pidvars aVar = 
 {
@@ -282,7 +299,7 @@ pidvars aVar =
   .eprev = 0,
   .eintegral = 0,
   .integralLimit = 100,
-  .kp = 0.13,
+  .kp = 0.25,
   .ki = 0.0, // 0.343
   .kd = 0.01, // 1.21
   .prevT = 0, 
@@ -441,14 +458,6 @@ void loop(void)  //main loop
    * Methods that must run every loop 
    */
   getCurrentAngle(); // This function must run every 70ms so is placed outside the FSM
-
-  #ifndef NO_BATTERY_V_OK
-  if (!is_battery_voltage_OK())
-  {
-    BluetoothSerial.println("BATTERY FAILURE");
-    machine_state = STOPPED;
-  }
-  #endif
 }
 
 //----------------------Motor moments------------------------
@@ -532,10 +541,10 @@ void strafe_right()
 // ----------------------Sonar------------------------
 float HC_SR04_range()
 {
-  if (!nonBlockingDelay(&mNonBlockingSonar.lastUpdateTime, 50))
-  {
-    return;
-  }
+  // if (!nonBlockingDelay(&mNonBlockingSonar.lastUpdateTime, 50))
+  // {
+  //   return;
+  // }
 
   unsigned long t1;
   unsigned long t2;
@@ -810,11 +819,15 @@ STATE drivepathway()
       xDesired = xPoint[0];
       yDesired = yPoint[0];
     }
-    BluetoothSerial.print("X-Position ");
-    BluetoothSerial.println(xDesired);
-    BluetoothSerial.print("Y-Position ");
-    BluetoothSerial.println(yDesired);
-    BluetoothSerial.println();
+
+    if (pathStep % 2 != 0 && pathStep != 0) // LESS POWER IN Y DIRECTION (X TRAVEL PID USED)
+    {
+      X_TRAVELLING = true;
+    }
+    else // MORE POWER IN Y DIRECTION (Y TRAVEL PID USED )
+    {
+      X_TRAVELLING = false;
+    }
 
     if (pathStep >= 20)
     {
@@ -840,54 +853,6 @@ STATE stopped() {
   return STOPPED;
 }
 
-// ----------------------Battery Checker------------------------
-
-#ifndef NO_BATTERY_V_OK
-boolean is_battery_voltage_OK()
-{
-  static byte Low_voltage_counter;
-  static unsigned long previous_millis;
-
-  int Lipo_level_cal;
-  int raw_lipo;
-  //the voltage of a LiPo cell depends on its chemistry and varies from about 3.5V (discharged) = 717(3.5V Min) https://oscarliang.com/lipo-battery-guide/
-  //to about 4.20-4.25V (fully charged) = 860(4.2V Max)
-  //Lipo Cell voltage should never go below 3V, So 3.5V is a safety factor.
-  raw_lipo = analogRead(A0);
-  Lipo_level_cal = (raw_lipo - 717);
-  Lipo_level_cal = Lipo_level_cal * 100;
-  Lipo_level_cal = Lipo_level_cal / 143;
-
-  if (Lipo_level_cal > 0 && Lipo_level_cal < 160) {
-    previous_millis = millis();
-    BluetoothSerial.print("Lipo level:");
-    BluetoothSerial.print(Lipo_level_cal);
-    BluetoothSerial.print("%");
-    BluetoothSerial.println("");
-    
-    Low_voltage_counter = 0;
-    return true;
-  } else {
-    if (Lipo_level_cal < 0)
-      BluetoothSerial.println("Lipo is Disconnected or Power Switch is turned OFF!!!");
-    else if (Lipo_level_cal > 160)
-      BluetoothSerial.println("!Lipo is Overchanged!!!");
-    else {
-      BluetoothSerial.println("Lipo voltage too LOW, any lower and the lipo with be damaged");
-      BluetoothSerial.print("Please Re-charge Lipo:");
-      BluetoothSerial.print(Lipo_level_cal);
-      BluetoothSerial.println("%");
-    }
-
-    Low_voltage_counter++;
-    if (Low_voltage_counter > 5)
-      return false;
-    else
-      return true;
-  }
-}
-#endif
-
 // ----------------------Gyro------------------------
 
 void GyroSetup() 
@@ -911,6 +876,8 @@ void GyroSetup()
 // TODO: ALWAYS THINKS T = 100 when in fact could be slightly above or below. Need to get actual difference from non blocking delay
 void getCurrentAngle() 
 {
+  unsigned long time = millis() - mNonBlockingTimerGyro.lastUpdateTime;
+
   if (!nonBlockingDelay(&mNonBlockingTimerGyro.lastUpdateTime, T))
   {
     return;
@@ -925,7 +892,7 @@ void getCurrentAngle()
   // if the angular velocity is less than the threshold, ignore it
   if (abs(angularVelocity) >= rotationThreshold) {
     // we are running a loop in T (of T/1000 second).
-    float angleChange = angularVelocity / (1000 / T);
+    float angleChange = angularVelocity / (1000 / time);
     currentAngle += angleChange;
 
     // Accumulate the angle change
@@ -1084,31 +1051,15 @@ float pidControl(pidvars* pidName, float error){
 
   // Integral with anti-windup
   float potentialIntegral = pidName->eintegral + error * deltaT;
+
   // Check if the potential integral term is within bounds
-  if (potentialIntegral > pidName->integralLimit) 
-  {
-    pidName->eintegral = pidName->integralLimit;
-  } else if (potentialIntegral < -pidName->integralLimit) 
-  {
-    pidName->eintegral = -pidName->integralLimit;
-  } else 
+  if (abs(potentialIntegral) < pidName->integralLimit) 
   {
     pidName->eintegral = potentialIntegral;
   }
 
   //control signal:
   float velocity = pidName->kp * error + pidName->ki * pidName->eintegral + pidName->kd * dedt;
-
-  // store previous error
-  pidName->eprev = error;
-
-  if (pidName->mPIDCONTROL == XCONTROL)
-  {
-    if(nonBlockingDelay(&mNonBlockingPrint.lastUpdateTime, 200))
-    {
-      BluetoothSerial.println(dedt);
-    }
-  }
 
   if ((abs(error) < abs(pidName->minError)))
   {
@@ -1119,6 +1070,9 @@ float pidControl(pidvars* pidName, float error){
     pidName->withinError = false;
     pidName->prevBreakOutTime = millis();
   }
+
+  // store previous error
+  pidName->eprev = error;
 
   return velocity;
 }
@@ -1200,16 +1154,29 @@ void printBool(IRSensor mIRSensor)
 
 bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
 {
-  if (xVar.prevT == 0 && xVar.prevT == 0 && aVar.prevT == 0)
+  if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 50)) // Run straight every 50 ms
+  {
+    return false;
+  }
+
+  if (xVar.prevT == 0)
   {
     xVar.prevT = millis();
-    yVar.prevT = millis();
+  }
+
+  if (aVar.prevT == 0)
+  {
     aVar.prevT = millis();
   }
 
-  if (!nonBlockingDelay(&mNonBlockingTimerPID.lastUpdateTime, 80)) // Run straight every 50 ms
+  if (yVar_XTravel.prevT == 0)
   {
-    return false;
+    yVar_XTravel.prevT = millis();
+  }
+
+  if (yVar_YTravel.prevT == 0)
+  {
+    yVar_YTravel.prevT = millis();
   }
 
   updateCoordinates();
@@ -1224,68 +1191,22 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
     angleError = currentAngle - 360; // Moving clockwise to reach 0
   }
 
-  // BluetoothSerial.print("X-Error: ");
-  // delay(20);
-  // BluetoothSerial.println(xError);
-  // delay(20);
-  // BluetoothSerial.print("Y-Error: ");
-  // delay(20);
-  // BluetoothSerial.println(yError);
-  // delay(20);
-  // BluetoothSerial.print("Angle-error: ");
-  // delay(20);
-  // BluetoothSerial.println(angleError);
-  // delay(20);
-  // BluetoothSerial.println();
-
   float xVelocity = pidControl(&xVar, xError);
-  float yVelocity = pidControl(&yVar, yError);
+
+  float yVelocity;
+
+  if (X_TRAVELLING == true)
+  {
+    yVelocity = pidControl(&yVar_XTravel, yError);
+  }
+  else
+  {
+    yVelocity = pidControl(&yVar_YTravel, yError);
+  }
+
   float aVelocity = pidControl(&aVar, angleError);
 
-  // if (nonBlockingDelay(&mNonBlockingPrint.lastUpdateTime, 2000)) // Run straight every 50 ms
-  // {
-  //   BluetoothSerial.print("X-coordinate ");
-  //   delay(20);
-  //   BluetoothSerial.println(xCoordinate);     delay(20);
-  //   BluetoothSerial.print("Y-coordinate ");    delay(20);
-  //   BluetoothSerial.println(yCoordinate);    delay(20);
-  //   BluetoothSerial.print("X-Leave ");    delay(20);
-  //   BluetoothSerial.println(xVar.withinError);    delay(20);
-  //   BluetoothSerial.print("Y-Leave ");    delay(20);
-  //   BluetoothSerial.println(yVar.withinError);    delay(20);
-  // }
-
-  // BluetoothSerial.print("X-Velocity: ");
-  // delay(20);
-  // BluetoothSerial.println(xVelocity);
-  // delay(20);
-  // BluetoothSerial.print("Y-Velocity: ");
-  // delay(20);
-  // BluetoothSerial.println(yVelocity);
-  // delay(20);
-  // BluetoothSerial.print("Z-Velocity: ");
-  // delay(20);
-  // BluetoothSerial.println(aVelocity);
-  // delay(20);
-
   inverseKinematics(xVelocity, yVelocity, aVelocity);
-
-  // BluetoothSerial.print("Motor 1: ");
-  // delay(20);
-  // BluetoothSerial.println(angVelArray[0]);
-  // delay(20);
-  // BluetoothSerial.print("Motor 2: ");
-  // delay(20);
-  // BluetoothSerial.println(-1 * angVelArray[1]);
-  // delay(20);
-  // BluetoothSerial.print("Motor 3: ");
-  // delay(20);
-  // BluetoothSerial.println(angVelArray[2]);
-  // delay(20);
-  // BluetoothSerial.print("Motor 4: ");
-  // delay(20);
-  // BluetoothSerial.println(-1 * angVelArray[3]);
-  // delay(20);
 
   left_font_motor.writeMicroseconds(1500 + angVelArray[0]);
   right_font_motor.writeMicroseconds(1500 - angVelArray[1]);
@@ -1297,21 +1218,21 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
   angVelArray[2] = 0.0;
   angVelArray[3] = 0.0;
 
-  if (xVar.withinError == true && yVar.withinError == true && aVar.withinError == true)
+  if (xVar.withinError == true && (yVar_YTravel.withinError == true || yVar_XTravel.withinError == true) && aVar.withinError == true) // CHECK
   {
     int check = 0;
 
-    if (breakOutTimerPID(&xVar.breakOutTime, xVar.breakOutTime))
+    if (breakOutTimerPID(&xVar.prevBreakOutTime, xVar.breakOutTime))
     {
       check++;
     }
     
-    if (breakOutTimerPID(&yVar.breakOutTime, yVar.breakOutTime))
+    if (breakOutTimerPID(&yVar_YTravel.prevBreakOutTime, yVar_YTravel.breakOutTime) || breakOutTimerPID(&yVar_XTravel.prevBreakOutTime, yVar_XTravel.breakOutTime))
     {
       check++;
     }
     
-    if (breakOutTimerPID(&aVar.breakOutTime, aVar.breakOutTime))
+    if (breakOutTimerPID(&aVar.prevBreakOutTime, aVar.breakOutTime))
     {
       check++;
     }
@@ -1320,15 +1241,18 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
     {
       aVar.eprev = 0;
       xVar.eprev = 0;
-      yVar.eprev = 0;
+      yVar_YTravel.eprev = 0;
+      yVar_XTravel.eprev = 0;
 
       aVar.eintegral = 0;
       xVar.eintegral = 0;
-      yVar.eintegral = 0;
+      yVar_YTravel.eintegral = 0;
+      yVar_XTravel.eintegral = 0;
 
       aVar.prevT = 0;
       xVar.prevT = 0;
-      yVar.prevT = 0;
+      yVar_YTravel.prevT = 0;
+      yVar_XTravel.prevT = 0;
 
       if (pathStep == 4 || pathStep == 8 || pathStep == 12 || pathStep == 16)
       {
