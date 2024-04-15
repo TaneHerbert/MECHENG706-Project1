@@ -282,7 +282,7 @@ pidvars aVar =
   .eprev = 0,
   .eintegral = 0,
   .integralLimit = 100,
-  .kp = 0.13,
+  .kp = 0.4,
   .ki = 0.0, // 0.343
   .kd = 0.01, // 1.21
   .prevT = 0, 
@@ -324,7 +324,7 @@ float angVelArray[4];
 int pathStep = 0;
 int segmentStep = 0;
 
-float xCoordinateDes[20] = {100, 1800, 1800, 130, 130, 1800, 1800, 130, 130, 1800, 1800, 130, 130, 1800, 1800, 130, 130, 1800, 1800, 130};
+float xCoordinateDes[20] = {100, 1850, 1850, 130, 130, 1850, 1850, 130, 130, 1850, 1850, 130, 130, 1850, 1850, 130, 130, 1850, 1850, 130};
 float yCoordinateDes[20] = {150, 150, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1050, 1050};
 
 float segmentArray[20] = {1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5}; // tells us how many segments we should break each path step into
@@ -1007,7 +1007,7 @@ void updateCoordinates()
 
     //FOR IN MIDDLE, MORE THAN 290mm on both sides
   else if ((IR_FL.isTooFar) && (IR_FR.isInRange || IR_BL.isInRange) && (IR_BR.isTooFar)){
-    if (frontRightDistance <= 540){
+    if (frontRightDistance <= 600){
       //use frontright sensor only
       yCoordinate = (1200.0 - frontRightDistance - 72.0);
     }
@@ -1039,7 +1039,7 @@ void updateCoordinates()
     //dont update y coordinate.
   }
 
-  xCoordinate = 2000 - ((10 * HC_SR04_range()) + 122);
+  xCoordinate = 2000 - ((10 * HC_SR04_range()) + 105);
 }
 // ----------------------Control System------------------------
 
@@ -1333,6 +1333,15 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
       if (pathStep == 4 || pathStep == 8 || pathStep == 12 || pathStep == 16)
       {
         reverse();
+        delay(400);
+        stop();
+        delay(400);
+        currentAngle = 0;
+      }
+
+      if (pathStep == 2 || pathStep == 6 || pathStep == 10 || pathStep == 14)
+      {
+        forward();
         delay(400);
         stop();
         delay(400);
