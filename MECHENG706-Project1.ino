@@ -1025,6 +1025,7 @@ void updateCoordinates()
   }
 
   xCoordinate = 2000 - ((10 * HC_SR04_range()) + 105);
+  appendSerial();
 }
 // ----------------------Control System------------------------
 
