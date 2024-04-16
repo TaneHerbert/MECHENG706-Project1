@@ -109,8 +109,8 @@ struct pidvars
   */
 
 // Global Coordinate based variables:
-float xCoordinate[3]; // xCoordinate[2] is current iteration, xCoordinate[1] is previous, xCoordinate[0] is 2 previous.
-float yCoordinate[3];
+float xCoordinate;
+float yCoordinate;
 int robotDirection; // (0 = sonar facing wall to start), (1 = sonar facing away from wall to start)
 
 // Time of one loop, 0.07 s (GYRO)
@@ -969,24 +969,18 @@ void updateCoordinates()
     //dont update y coordinate.
   }
 
+  /* 
+    I removed some of the functionality here about correcting erranous x-values and it is called within movingAverage()
+  */
   float distance = HC_SR04_range();
 
-  if (distance != -1.0)
-  {
-    if (firstCurrent == false)
-    {
-      firstCurrent = true;
-      currentDist = HC_SR04_range();
-    }
-
-    // Check if the distance is within the allowed range
-    if(abs(abs(currentDist) - abs(distance)) < 70) 
-    {
-      xCoordinate = 2000 - ((10 * distance) + 105);    
-    }
-
-    currentDist = distance;
+  if (firstCurrent == false){
+    firstCurrent = true;
+    currentDist = HC_SR04_range();
   }
+
+  movingAverage();
+  currentDist = distance;
 
   if (startPath == true)
   {
@@ -1358,4 +1352,48 @@ void printDataToSerial(){ // Prints x,y,time data to serial in csv format.
   else{
       BluetoothSerial.println( "The run is not complete");
   }
+}
+
+/*
+          MOVING AVERAGE CODE SNIPPET BELOW:
+  To add into another branch follow these 3 steps:
+    * Copy and paste the below snippet of code
+    * Put function header at the top
+    * Put movingAverage inside updateCoordinates on the line above appendSerial
+    * Make sure you delete the duplicated code that is currently within updateCoordinate (it has been moved into movingAverage)
+*/
+
+
+
+// These represent the maximum allowable change between 2 updateCoordinate iterations
+#define MAX_Y_NONWALL_CHANGE 50
+#define MAX_Y_WALL_CHANGE 10
+#define MAX_X_CHANGE 70
+
+// ** IF errors are occuring at beginning, add iterationValue>1 to make sure there are sufficient iterations that have taken place to extrapolate
+void movingAverage(){
+
+  // FOR FIXING X-COORDINATE
+
+  // -1 is only outputted if invalid sonar reading is called. 'MAX_X_CHANGE' is the allowable change between 2 iterations
+  if ((distance != -1.0)&&(abs(abs(currentDist) - abs(distance)) < MAX_X_CHANGE)&&(startPath)) 
+  {
+      xCoordinate = 2000 - ((10 * distance) + 105);
+  }
+  else {
+    xCoordinate = (2*xCoordinatesArray[iterationValue])-xCoordinatesArray[iterationValue-1];
+  }
+  // FOR FIXING Y-COORDINATE
+ 
+  if ((yCoordinate<200)||(yCoordinate>1000)){ // When against wall
+    if ((abs(yCoordinate-yCoordinatesArray[iterationValue])>MAX_Y_NONWALL_CHANGE)&&(startPath)){  // Only change yCoordinate if the value that was read is too much of a change
+      yCoordinate = (2*yCoordinatesArray[iterationValue])-yCoordinatesArray[iterationValue-1];
+    }
+  }
+  else{ // When everywhere else away from wall (we are alright with more error)
+    if ((abs(yCoordinate-yCoordinatesArray[iterationValue])>MAX_Y_WALL_CHANGE)&&(startPath)){ 
+      yCoordinate = (2*yCoordinatesArray[iterationValue])-yCoordinatesArray[iterationValue-1];
+    }
+  }
+
 }
