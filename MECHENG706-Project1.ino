@@ -325,7 +325,7 @@ int segmentStep = 0;
 float xCoordinateDes[20] = {100, 1850, 1850, 130, 130, 1850, 1850, 130, 130, 1850, 1850, 130, 130, 1850, 1850, 130, 130, 1850, 1850, 130};
 float yCoordinateDes[20] = {150, 150, 250, 250, 350, 350, 450, 450, 550, 550, 650, 650, 750, 750, 850, 850, 950, 950, 1050, 1050};
 
-float segmentArray[20] = {1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5}; // tells us how many segments we should break each path step into
+float segmentArray[20] = {1, 10, 1, 8, 1, 8, 1, 8, 1, 8, 1, 8, 1, 8, 1, 8, 1, 5, 1, 10}; // tells us how many segments we should break each path step into
 
 float xDesired = xCoordinateDes[0];
 float yDesired = yCoordinateDes[0];
@@ -803,6 +803,15 @@ STATE driveToCorner()
 STATE drivepathway()
 {
   startPath = true;
+  if (pathStep == 0 || pathStep == 1 || pathStep == 18 || pathStep == 19)
+  {
+    yVar.minError = 10;
+  }
+  else
+  {
+    yVar.minError = 20;
+  }
+
   if (driveToPosition(xDesired, yDesired)){ // Will output true if the robot has reached the current desired position
     segmentStep++;
     xDesired = xPoint[segmentStep];
