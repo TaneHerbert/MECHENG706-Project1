@@ -287,7 +287,7 @@ pidvars aVar =
   .breakOutTime = 20,
   .prevBreakOutTime = 0,
   .withinError = false,
-  .minError = 1.0,
+  .minError = 2.0,
 };
 
 //Alignment PID variables
@@ -1011,7 +1011,7 @@ void updateCoordinates()
 
   if (startPath == true)
   {
-    // appendSerial();
+    appendSerial();
   }
 }
 // ----------------------Control System------------------------
@@ -1209,17 +1209,17 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
   {
     int check = 0;
 
-    if (breakOutTimerPID(&xVar.breakOutTime, xVar.breakOutTime))
+    if (breakOutTimerPID(&xVar.prevBreakOutTime, xVar.breakOutTime))
     {
       check++;
     }
     
-    if (breakOutTimerPID(&yVar.breakOutTime, yVar.breakOutTime))
+    if (breakOutTimerPID(&yVar.prevBreakOutTime, yVar.breakOutTime))
     {
       check++;
     }
     
-    if (breakOutTimerPID(&aVar.breakOutTime, aVar.breakOutTime))
+    if (breakOutTimerPID(&aVar.prevBreakOutTime, aVar.breakOutTime))
     {
       check++;
     }
@@ -1238,7 +1238,7 @@ bool driveToPosition(float xDesiredPoisition, float yDesiredPosition)
       xVar.prevT = 0;
       yVar.prevT = 0;
 
-      if (pathStep == 4 || pathStep == 8 || pathStep == 12 || pathStep == 16)
+      if (pathStep == 0 || pathStep == 4 || pathStep == 8 || pathStep == 12 || pathStep == 16)
       {
         reverse();
         delay(400);
@@ -1280,7 +1280,7 @@ void drivePoints(float xCoordinate, float yCoordinate, float xDesired, float yDe
     VARIABLES/DECLARATIONS FOR PRINTING
 */
 
-int valuesPerPoint = 2; // represents the number of values it takes the average per point
+int valuesPerPoint = 11; // represents the number of values it takes the average per point
 int iterationValue = 0; // changes to show how many iterations have occured.
 int arrI = 0;
 
